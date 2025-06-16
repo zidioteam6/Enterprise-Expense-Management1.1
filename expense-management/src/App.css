@@ -1,0 +1,441 @@
+.login-container {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #EEF2FF, #EDE9FE);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 28rem;
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  animation: fadeIn 0.6s ease-out;
+  transition: all 0.5s ease-in-out;
+}
+
+.login-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.login-header {
+  background: linear-gradient(to right, #9F7AEA, #667EEA);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.login-header h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.login-header p {
+  color: #EDE9FE;
+  margin-top: 0.25rem;
+}
+
+.login-form {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  color: #4B5563;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.form-group .input-container {
+  position: relative;
+}
+
+.form-group .icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  color: #9CA3AF;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #D1D5DB;
+  transition: all 0.3s;
+}
+
+.form-group input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+  border-color: transparent;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+}
+
+.toggle-password:hover {
+  color: #4B5563;
+}
+
+.form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: #4B5563;
+}
+
+.remember-me input {
+  margin-right: 0.5rem;
+}
+
+.forgot-password {
+  font-size: 0.875rem;
+  color: #8B5CF6;
+  text-decoration: none;
+}
+
+.forgot-password:hover {
+  color: #7C3AED;
+}
+
+.login-button {
+  width: 100%;
+  background: linear-gradient(to right, #9F7AEA, #667EEA);
+  color: white;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.login-button:hover:not(:disabled) {
+  background: linear-gradient(to right, #8B5CF6, #5B67D7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+.signup {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: #4B5563;
+}
+
+.signup a {
+  color: #8B5CF6;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.signup a:hover {
+  color: #7C3AED;
+}
+
+.social-divider {
+  position: relative;
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.social-divider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #D1D5DB;
+}
+
+.social-divider span {
+  position: relative;
+  padding: 0 0.5rem;
+  background-color: white;
+  color: #6B7280;
+  font-size: 0.875rem;
+}
+
+.social-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.social-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.5rem;
+  background-color: white;
+  color: #4B5563;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.social-button:hover {
+  background-color: #F9FAFB;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Additional styles for signup page */
+.terms-checkbox {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.terms-link {
+  color: #8B5CF6;
+  text-decoration: none;
+}
+
+.terms-link:hover {
+  color: #7C3AED;
+  text-decoration: underline;
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+
+
+
+
+
+
+/* AddExpenseForm Styles */
+.add-expense-container {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #EEF2FF, #EDE9FE);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.add-expense-card {
+  width: 100%;
+  max-width: 28rem;
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  animation: fadeIn 0.6s ease-out;
+  transition: all 0.5s ease-in-out;
+}
+
+.add-expense-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.add-expense-header {
+  background: linear-gradient(to right, #9F7AEA, #667EEA);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.add-expense-header h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.add-expense-header p {
+  color: #EDE9FE;
+  margin-top: 0.25rem;
+}
+
+.add-expense-form {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  color: #4B5563;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.form-group .input-container {
+  position: relative;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #D1D5DB;
+  transition: all 0.3s;
+}
+
+.form-group input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+  border-color: transparent;
+}
+
+.form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+}
+
+.add-expense-button {
+  width: 100%;
+  background: linear-gradient(to right, #9F7AEA, #667EEA);
+  color: white;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.add-expense-button:hover:not(:disabled) {
+  background: linear-gradient(to right, #8B5CF6, #5B67D7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.add-expense-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Add some space between form groups */
+.form-group input {
+  margin-bottom: 1rem;
+}
+
+/* Additional styles for social buttons or icons */
+.add-expense-social-divider {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.add-expense-social-divider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #D1D5DB;
+}
+
+.add-expense-social-divider span {
+  position: relative;
+  padding: 0 0.5rem;
+  background-color: white;
+  color: #6B7280;
+  font-size: 0.875rem;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+
+
+
+Attached Invoice Input Styling
+.file-input {
+  font-size: 0.875rem;
+  color: #4B5563;
+  background-color: #F9FAFB;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  transition: border 0.3s ease;
+}
+
+.file-input:hover,
+.file-input:focus {
+  border-color: #9F7AEA;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+}
+

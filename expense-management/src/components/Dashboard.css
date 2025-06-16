@@ -1,0 +1,258 @@
+
+
+ .expense-summary-modal {
+  background: #fff;
+  padding: 25px 30px;
+  border-radius: 10px;
+  width: 80%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+ .expense-summary-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.expense-summary-close-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.expense-summary-close-btn:hover {
+  background-color: #d32f2f;
+}
+
+.expense-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.expense-summary-table th,
+.expense-summary-table td {
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+  text-align: left;
+}
+
+.expense-summary-table th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+
+
+
+.dashboard-container {
+  padding: 40px;
+  background-color: #f0f2f5;
+  min-height: 100vh;
+}
+
+.dashboard-title {
+  text-align: center;
+  margin-bottom: 40px;
+  color: #1976d2;
+  font-weight: bold;
+}
+
+.card-grid {
+  max-width: 1200px;
+  margin: 0 auto 50px auto;
+}
+
+.feature-card {
+  padding: 20px;
+  text-align: center;
+  transition: 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: scale(1.03);
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 30px;
+  background: white;
+  border-radius: 12px;
+}
+/* Dashboard Styles */
+
+
+
+
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #EEF2FF, #EDE9FE);
+  padding: 2rem;
+}
+
+.dashboard-title {
+  color: #4B5563;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.card-grid {
+  margin-bottom: 2rem;
+}
+
+.feature-card {
+  background-color: white;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease-in-out;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem;
+}
+
+.chart-container {
+  padding: 2rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  margin-top: 2rem;
+}
+
+/* Reuse styles for AddExpenseForm and ExpenseSummaryModal */
+
+.add-expense-container {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #EEF2FF, #EDE9FE);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.add-expense-card {
+  width: 100%;
+  max-width: 28rem;
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  animation: fadeIn 0.6s ease-out;
+  transition: all 0.5s ease-in-out;
+}
+
+.add-expense-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.add-expense-header {
+  background: linear-gradient(to right, #9F7AEA, #667EEA);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.add-expense-header h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.add-expense-header p {
+  color: #EDE9FE;
+  margin-top: 0.25rem;
+}
+
+.add-expense-form {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  color: #4B5563;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #D1D5DB;
+  transition: all 0.3s;
+}
+
+.form-group input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+  border-color: transparent;
+}
+
+.add-expense-button {
+  width: 100%;
+  background: linear-gradient(to right, #9F7AEA, #667EEA);
+  color: white;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.add-expense-button:hover:not(:disabled) {
+  background: linear-gradient(to right, #8B5CF6, #5B67D7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.add-expense-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}  
+
+
