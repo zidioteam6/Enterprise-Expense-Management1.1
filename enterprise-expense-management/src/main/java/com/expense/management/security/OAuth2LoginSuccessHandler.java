@@ -13,6 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -26,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
@@ -41,6 +43,9 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -89,17 +94,31 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
     }
 
     private String getEmailFromOAuth2User(OAuth2User oAuth2User) {
+        // For GitHub, email might be null in the initial OAuth2User
         if (oAuth2User.getAttribute("email") != null) {
             return oAuth2User.getAttribute("email");
         }
+        
+        // For GitHub, we might need to use login as a fallback
+        if (oAuth2User.getAttribute("login") != null) {
+            return oAuth2User.getAttribute("login") + "@github.com";
+        }
+        
         throw new RuntimeException("Email not found from OAuth2 provider");
     }
 
     private String getNameFromOAuth2User(OAuth2User oAuth2User) {
+        // Try to get name from different possible attributes
         if (oAuth2User.getAttribute("name") != null) {
             return oAuth2User.getAttribute("name");
         }
-        return oAuth2User.getAttribute("email");
+        if (oAuth2User.getAttribute("login") != null) {
+            return oAuth2User.getAttribute("login");
+        }
+        if (oAuth2User.getAttribute("email") != null) {
+            return oAuth2User.getAttribute("email");
+        }
+        return "Unknown User";
     }
 
     private User createNewUser(String email, String name) {
@@ -110,6 +129,9 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         newUser.setEmail(email);
         newUser.setFullName(name);
         newUser.setRole(defaultRole);
+        // Set a secure random password for OAuth2 users
+        String randomPassword = UUID.randomUUID().toString();
+        newUser.setPassword(passwordEncoder.encode(randomPassword));
         return userRepository.save(newUser);
     }
 }
