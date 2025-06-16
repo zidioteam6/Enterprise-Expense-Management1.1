@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.HashMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import java.util.List;
 
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
@@ -172,6 +173,26 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.badRequest()
                 .body(Map.of("message", "Error updating user role: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getAllUsers() {
+        try {
+            List<User> users = userRepository.findAll();
+            List<Map<String, Object>> userList = users.stream().map(user -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", user.getId());
+                map.put("email", user.getEmail());
+                map.put("fullName", user.getFullName());
+                map.put("role", user.getRole().getName());
+                return map;
+            }).toList();
+            return ResponseEntity.ok(userList);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error fetching users: " + e.getMessage());
         }
     }
 }

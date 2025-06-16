@@ -73,7 +73,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         userInfo.put("id", user.getId());
         userInfo.put("email", user.getEmail());
         userInfo.put("fullName", user.getFullName());
-        userInfo.put("roles", user.getRole().getName());
+        userInfo.put("role", user.getRole().getName());
         userInfo.put("isAuthenticated", true);
 
         // Convert user info to JSON and URL encode it
@@ -83,8 +83,13 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         // Set authentication in security context
         SecurityContextHolder.getContext().setAuthentication(auth);
 
+        // Determine redirect URL based on user role
+        String baseRedirectUrl = user.getRole().getName().equals("ROLE_ADMIN") 
+            ? "http://localhost:3000/admin-dashboard" 
+            : "http://localhost:3000/dashboard";
+
         // Construct the redirect URL with token and user info as query parameters
-        String redirectUrl = UriComponentsBuilder.fromUriString("http://localhost:3000/dashboard")
+        String redirectUrl = UriComponentsBuilder.fromUriString(baseRedirectUrl)
                 .queryParam("token", token)
                 .queryParam("user", encodedUserInfo)
                 .build().toUriString();

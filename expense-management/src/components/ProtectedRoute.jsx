@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { isAuthenticated, user, setUser, setIsAuthenticated, loading } = useAuth();
   const location = useLocation();
 
@@ -35,6 +35,17 @@ const ProtectedRoute = ({ children }) => {
   if (!isAuthenticated) {
     // Redirect to login page but save the attempted url
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // If adminOnly is true, check for admin role (handle all possible formats)
+  const isAdmin =
+    user?.role === 'ROLE_ADMIN' ||
+    user?.roles === 'ROLE_ADMIN' ||
+    (Array.isArray(user?.roles) && user.roles.includes('ROLE_ADMIN'));
+
+  if (adminOnly && !isAdmin) {
+    // Redirect non-admins to the normal dashboard
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

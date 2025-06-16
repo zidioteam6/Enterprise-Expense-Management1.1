@@ -51,6 +51,34 @@ public class DashboardService {
         return dashboard;
     }
 
+    public DashboardDTO getDashboardData(List<Expense> expenses) {
+        DashboardDTO dashboard = new DashboardDTO();
+
+        // Calculate total expenses
+        dashboard.setTotalExpenses(expenses.stream()
+                .mapToDouble(Expense::getAmount)
+                .sum());
+
+        // Calculate expenses by status
+        dashboard.setPendingExpenses(calculateExpensesByStatus(expenses, ExpenseStatus.PENDING));
+        dashboard.setApprovedExpenses(calculateExpensesByStatus(expenses, ExpenseStatus.APPROVED));
+        dashboard.setRejectedExpenses(calculateExpensesByStatus(expenses, ExpenseStatus.REJECTED));
+
+        // Calculate expenses by category
+        dashboard.setExpensesByCategory(calculateExpensesByCategory(expenses));
+
+        // Get recent expenses
+        dashboard.setRecentExpenses(getRecentExpenses(expenses));
+
+        // Calculate monthly expenses
+        dashboard.setMonthlyExpenses(calculateMonthlyExpenses(expenses));
+
+        // Calculate status counts
+        dashboard.setStatusCounts(calculateStatusCounts(expenses));
+
+        return dashboard;
+    }
+
     private double calculateExpensesByStatus(List<Expense> expenses, ExpenseStatus status) {
         return expenses.stream()
                 .filter(e -> e.getApprovalStatus() == status)

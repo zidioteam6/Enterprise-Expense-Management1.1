@@ -7,7 +7,7 @@ import axios from 'axios';
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated, setUser, setIsAuthenticated } = useAuth();
+  const { login, isAuthenticated, setUser, setIsAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -21,10 +21,17 @@ const LoginPage = () => {
     console.log('Current URL:', window.location.href);
     console.log('Location search string:', location.search);
 
-    // If user is already authenticated, redirect to dashboard
-    if (isAuthenticated) {
-      console.log('LoginPage useEffect: User is already authenticated. Redirecting to dashboard.');
-      navigate('/dashboard');
+    // If user is already authenticated, redirect based on role
+    if (isAuthenticated && user) {
+      if (
+        user.role === 'ROLE_ADMIN' ||
+        user.roles === 'ROLE_ADMIN' ||
+        (Array.isArray(user.roles) && user.roles.includes('ROLE_ADMIN'))
+      ) {
+        navigate('/admin-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
       return;
     }
 
@@ -33,21 +40,29 @@ const LoginPage = () => {
 
     // Fallback: Check if we're coming from OAuth2 login with data already in localStorage
     const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
+    const userStr = localStorage.getItem('user');
 
     console.log('LoginPage useEffect: LocalStorage token:', token ? 'present' : 'not present');
-    console.log('LoginPage useEffect: LocalStorage user:', user ? 'present' : 'not present');
+    console.log('LoginPage useEffect: LocalStorage user:', userStr ? 'present' : 'not present');
 
-    if (token && user) {
+    if (token && userStr) {
       try {
-        const userData = JSON.parse(user);
+        const userData = JSON.parse(userStr);
         console.log('LoginPage useEffect: Successfully parsed user data from localStorage:', userData);
         // Set auth header
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         setUser(userData);
         setIsAuthenticated(true);
-        console.log('LoginPage useEffect: AuthContext updated from localStorage. Navigating to dashboard.');
-        navigate('/dashboard');
+        // Redirect based on role
+        if (
+          userData.role === 'ROLE_ADMIN' ||
+          userData.roles === 'ROLE_ADMIN' ||
+          (Array.isArray(userData.roles) && userData.roles.includes('ROLE_ADMIN'))
+        ) {
+          navigate('/admin-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
       } catch (storageError) {
         console.error('LoginPage useEffect: Error processing OAuth2 login from storage:', storageError);
         setError('Error processing OAuth2 login');
@@ -56,7 +71,7 @@ const LoginPage = () => {
       }
     }
     console.log('LoginPage useEffect: END');
-  }, [navigate, isAuthenticated, setUser, setIsAuthenticated, location.search]);
+  }, [navigate, isAuthenticated, setUser, setIsAuthenticated, location.search, user]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

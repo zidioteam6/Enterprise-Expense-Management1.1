@@ -35,6 +35,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**", "/oauth2/**", "/login/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/employee/**").hasAuthority("ROLE_EMPLOYEE")
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2

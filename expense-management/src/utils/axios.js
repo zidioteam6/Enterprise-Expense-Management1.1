@@ -19,6 +19,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -27,12 +28,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Handle unauthorized access
+    console.error('Response error:', error.response?.status, error.response?.data);
+    
+    if (error.response?.status === 401) {
+      // Clear auth data and redirect to login
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
+    } else if (error.response?.status === 403) {
+      // Handle forbidden access
+      window.location.href = '/dashboard';
     }
+    
     return Promise.reject(error);
   }
 );
