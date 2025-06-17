@@ -20,6 +20,8 @@ import com.expense.management.security.JwtTokenProvider;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Optional;
@@ -53,6 +55,8 @@ public class UserController {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+
     UserController(UserService userService) {
         this.userService = userService;
     }
@@ -79,6 +83,17 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         try {
+            // Validate request
+            if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Email is required"));
+            }
+            if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Password is required"));
+            }
+
+            logger.debug("Attempting to authenticate user with email: {}", request.getEmail());
+
+            // Attempt authentication
             Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                     request.getEmail(),
@@ -86,27 +101,49 @@ public class UserController {
                 )
             );
 
+            logger.debug("Authentication successful for user: {}", request.getEmail());
+
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
+            // Generate JWT token
             String jwt = jwtTokenProvider.generateToken(authentication);
             
+            // Get user details
             Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
-            User user = userOpt.orElseThrow(() -> new RuntimeException("User not found after authentication."));
+            User user = userOpt.orElseThrow(() -> {
+                logger.error("User not found after successful authentication: {}", request.getEmail());
+                return new RuntimeException("User not found after authentication.");
+            });
 
+            logger.debug("User details retrieved successfully: {}", user.getEmail());
+
+            // Prepare response
             Map<String, Object> response = new HashMap<>();
             response.put("token", jwt);
             response.put("user", Map.of(
                 "id", user.getId(),
                 "email", user.getEmail(),
                 "fullName", user.getFullName(),
-                "roles", user.getRole().getName(),
+                "role", user.getRole().getName(),
                 "isAuthenticated", true
             ));
 
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok()
+                .header("Authorization", "Bearer " + jwt)
+                .body(response);
 
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid credentials or user not found."));
+            logger.error("Authentication failed for user: {}, error: {}", request.getEmail(), e.getMessage());
+            String errorMessage = "Authentication failed";
+            if (e.getMessage() != null && e.getMessage().contains("Bad credentials")) {
+                errorMessage = "Invalid email or password";
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of(
+                    "message", errorMessage,
+                    "error", e.getMessage(),
+                    "isAuthenticated", false
+                ));
         }
     }
 
@@ -118,11 +155,15 @@ public class UserController {
 
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
+        // Get the default ROLE_EMPLOYEE role
+        Role defaultRole = roleRepository.findByName("ROLE_EMPLOYEE")
+            .orElseThrow(() -> new RuntimeException("Default role not found"));
+
         User newUser = new User();
         newUser.setFullName(request.getFullName());
         newUser.setEmail(request.getEmail());
         newUser.setPassword(encodedPassword);
-        newUser.setRole(request.getRole()); // ✅ Set role based on user selection
+        newUser.setRole(defaultRole); // Set default role
 
         userRepository.save(newUser);
 
