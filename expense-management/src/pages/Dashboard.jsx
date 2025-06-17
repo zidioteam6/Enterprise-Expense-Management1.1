@@ -24,85 +24,80 @@ import {
   Building,
   CreditCard,
   Camera,
-  Paperclip
+  Paperclip,
+  X
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
+import AddExpenseForm from './AddExpenseForm';
+import { useNotification } from '../context/NotificationContext';
 
 const API_BASE = 'http://localhost:8080';
 
-const EmployeeDashboard = () => {
+const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
-
-  // Backend data states
-  const [dashboardData, setDashboardData] = useState(null);
   const [expenses, setExpenses] = useState([]);
-  const [userProfile, setUserProfile] = useState(null);
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
 
-  // Form states for new expense
-  const [newExpense, setNewExpense] = useState({
-    description: '',
-    amount: '',
-    category: '',
-    date: '',
-    receipt: null
-  });
-
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { notifications, removeNotification } = useNotification();
+
+  // Define a mapping for categories with emojis
+  const categoryEmojis = {
+    FOOD: { name: 'Food', emoji: '🍔' },
+    TRANSPORTATION: { name: 'Transportation', emoji: '🚗' },
+    HOUSING: { name: 'Housing', emoji: '🏠' },
+    UTILITIES: { name: 'Utilities', emoji: '💡' },
+    ENTERTAINMENT: { name: 'Entertainment', emoji: '🎬' },
+    HEALTH: { name: 'Health', emoji: '🏥' },
+    EDUCATION: { name: 'Education', emoji: '📚' },
+    SHOPPING: { name: 'Shopping', emoji: '🛍️' },
+    SALARY: { name: 'Salary', emoji: '💰' },
+    OTHER: { name: 'Other', emoji: '🤷‍♀️' },
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch employee dashboard data
-        console.log('Fetching dashboard data...');
-        const dashboardRes = await api.get('/employee/dashboard');
-        console.log('Dashboard data received:', dashboardRes.data);
-        setDashboardData(dashboardRes.data);
-
-        // Fetch employee expenses
-        console.log('Fetching expenses...');
-        const expensesRes = await api.get('/employee/dashboard/expenses');
+        // Fetch expenses
+        const expensesRes = await api.get('/expenses');
+        console.log('Expenses data:', expensesRes.data);
         setExpenses(expensesRes.data);
 
-        // Fetch user profile
-        const profileRes = await api.get('/auth/profile');
-        setUserProfile(profileRes.data);
-
-        // Fetch expense categories
+        // Fetch categories and transform them
         const categoriesRes = await api.get('/expenses/categories');
-        setCategories(categoriesRes.data);
+        console.log('Categories data from backend:', categoriesRes.data);
+        const transformedCategories = Object.entries(categoriesRes.data).reduce((acc, [code, name]) => {
+          acc[code] = categoryEmojis[code] || { name: name, emoji: '🤷‍♀️' }; // Fallback for unknown categories
+          return acc;
+        }, {});
+        setCategories(transformedCategories);
+        console.log('Transformed categories:', transformedCategories);
 
-        // Fetch notifications
-        const notificationsRes = await api.get('/notifications');
-        setNotifications(notificationsRes.data);
-
+        // Fetch dashboard stats
+        const dashboardRes = await api.get('/dashboard');
+        console.log('Dashboard data:', dashboardRes.data);
+        setDashboardData(dashboardRes.data);
       } catch (err) {
-        console.error('Employee dashboard fetch error:', err);
-        if (err.response?.status === 401) {
-          navigate('/login');
-        } else {
-          setError(err.response?.data?.message || 'Failed to load dashboard data.');
-        }
+        console.error('Dashboard fetch error:', err);
+        setError(err?.response?.data?.message || err.message || 'Failed to load dashboard data.');
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, [navigate]);
+  }, []);
 
   // Show loading or error
   if (loading) return <div className="p-8 text-center">Loading dashboard...</div>;
@@ -114,16 +109,17 @@ const EmployeeDashboard = () => {
     pendingExpenses: 0,
     approvedExpenses: 0,
     rejectedExpenses: 0,
-    monthlySpend: 0,
-    expensesByCategory: [],
-    monthlyTrends: [],
-    recentExpenses: []
+    expensesByCategory: {},
+    recentExpenses: [],
+    monthlyExpenses: {},
+    statusCounts: {},
   };
 
   // Defensive helpers
   const safeNumber = (val) => (typeof val === 'number' && !isNaN(val) ? val : 0);
   const safeToLocaleString = (val) => safeNumber(val).toLocaleString();
   const safeArray = (val) => Array.isArray(val) ? val : [];
+  const safeObject = (val) => (typeof val === 'object' && val !== null ? val : {});
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -134,111 +130,14 @@ const EmployeeDashboard = () => {
     }
   };
 
-  const handleExpenseSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      const formData = new FormData();
-      
-      formData.append('description', newExpense.description);
-      formData.append('amount', newExpense.amount);
-      formData.append('category', newExpense.category);
-      formData.append('date', newExpense.date);
-      
-      if (newExpense.receipt) {
-        formData.append('receipt', newExpense.receipt);
-      }
-
-      const response = await fetch(`${API_BASE}/api/expenses`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) throw new Error('Failed to submit expense');
-
-      const createdExpense = await response.json();
-      setExpenses([createdExpense, ...expenses]);
-      setShowExpenseModal(false);
-      setNewExpense({ description: '', amount: '', category: '', date: '', receipt: null });
-      
-      // Refresh dashboard data
-      window.location.reload();
-    } catch (err) {
-      console.error('Error submitting expense:', err);
-      setError(err.message || 'Failed to submit expense');
-    }
+  const getCategoryDisplay = (categoryCode) => {
+    const category = safeObject(categories)[categoryCode];
+    return category ? `${category.emoji} ${category.name}` : categoryCode;
   };
 
-  const handleExpenseAction = async (action, expense) => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      switch (action) {
-        case 'edit':
-          setSelectedExpense(expense);
-          setNewExpense({
-            description: expense.description,
-            amount: expense.amount.toString(),
-            category: expense.category,
-            date: expense.date,
-            receipt: null
-          });
-          setShowExpenseModal(true);
-          break;
-          
-        case 'delete':
-          if (window.confirm('Are you sure you want to delete this expense?')) {
-            const response = await fetch(`${API_BASE}/api/expenses/${expense.id}`, {
-              method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${token}`
-              }
-            });
-            
-            if (!response.ok) throw new Error('Failed to delete expense');
-            
-            setExpenses(expenses.filter(e => e.id !== expense.id));
-          }
-          break;
-          
-        case 'view':
-          setSelectedExpense(expense);
-          // Could open a view modal here
-          break;
-      }
-    } catch (err) {
-      console.error('Error handling expense action:', err);
-      setError(err.message || 'Failed to perform action');
-    }
-  };
-
-  const exportData = async (type) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/employee/expenses/export?type=${type}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to export data');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `expenses_${type}_${new Date().toISOString().split('T')[0]}.${type === 'pdf' ? 'pdf' : 'xlsx'}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error('Error exporting data:', err);
-      setError(err.message || 'Failed to export data');
-    }
+  const handleExpenseAdded = (newExpense) => {
+    setExpenses(prevExpenses => [newExpense, ...prevExpenses]);
+    setShowExpenseModal(false);
   };
 
   const renderOverview = () => (
@@ -249,36 +148,36 @@ const EmployeeDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboard.totalExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.totalExpenses)}</p>
             </div>
             <Receipt className="h-8 w-8 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboard.pendingExpenses)}</p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-500" />
           </div>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboard.approvedExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.approvedExpenses)}</p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">This Month</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.monthlySpend)}</p>
+              <p className="text-sm font-medium text-gray-600">Pending</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.pendingExpenses)}</p>
             </div>
-            <DollarSign className="h-8 w-8 text-purple-500" />
+            <Clock className="h-8 w-8 text-yellow-500" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Rejected</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.rejectedExpenses)}</p>
+            </div>
+            <XCircle className="h-8 w-8 text-red-500" />
           </div>
         </div>
       </div>
@@ -288,7 +187,7 @@ const EmployeeDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={safeArray(dashboard.monthlyTrends)}>
+            <LineChart data={safeArray(dashboard.monthlyExpenses)}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -308,50 +207,15 @@ const EmployeeDashboard = () => {
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
+                label={({ name, value }) => `${name}: ${safeToLocaleString(value)}%`}
               >
                 {safeArray(dashboard.expensesByCategory).map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+              <Tooltip formatter={(value) => [`${safeToLocaleString(value)}%`, 'Percentage']} />
             </RechartsPieChart>
           </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Recent Expenses */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Recent Expenses</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {safeArray(dashboard.recentExpenses).map((expense) => (
-                <tr key={expense.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.status)}`}>
-                      {expense.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
@@ -377,68 +241,16 @@ const EmployeeDashboard = () => {
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus className="h-4 w-4" />
-            New Expense
+            Add Expense
           </button>
         </div>
       </div>
 
-      {/* Expense Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pending Approval</p>
-              <p className="text-2xl font-bold text-yellow-600">{safeToLocaleString(dashboard.pendingExpenses)}</p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Approved This Month</p>
-              <p className="text-2xl font-bold text-green-600">{safeToLocaleString(dashboard.approvedExpenses)}</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Amount</p>
-              <p className="text-2xl font-bold text-blue-600">${safeToLocaleString(dashboard.monthlySpend)}</p>
-            </div>
-            <DollarSign className="h-8 w-8 text-blue-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Expense Table */}
       <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h3 className="text-lg font-semibold">All Expenses</h3>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => exportData('excel')}
-              className="text-green-600 hover:text-green-800 flex items-center gap-1"
-            >
-              <Download className="h-4 w-4" />
-              Excel
-            </button>
-            <button 
-              onClick={() => exportData('pdf')}
-              className="text-red-600 hover:text-red-800 flex items-center gap-1"
-            >
-              <Download className="h-4 w-4" />
-              PDF
-            </button>
-          </div>
-        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
@@ -448,41 +260,33 @@ const EmployeeDashboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {safeArray(expenses).filter(expense => 
-                expense?.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                expense?.category?.toLowerCase().includes(searchTerm.toLowerCase())
-              ).map((expense) => (
+              {expenses
+                .filter(expense => 
+                  expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  expense.category.toLowerCase().includes(searchTerm.toLowerCase())
+                )
+                .map((expense) => (
                 <tr key={expense.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#{expense.id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getCategoryDisplay(expense.category)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(expense.date).toLocaleDateString()}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.status)}`}>
-                      {expense.status}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                      {expense.approvalStatus}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button 
-                        onClick={() => handleExpenseAction('view', expense)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
+                      <button className="text-blue-600 hover:text-blue-900">
                         <Eye className="h-4 w-4" />
                       </button>
-                      {expense.status === 'PENDING' && (
+                      {expense.approvalStatus === 'PENDING' && (
                         <>
-                          <button 
-                            onClick={() => handleExpenseAction('edit', expense)}
-                            className="text-green-600 hover:text-green-900"
-                          >
+                          <button className="text-blue-600 hover:text-blue-900">
                             <Edit className="h-4 w-4" />
                           </button>
-                          <button 
-                            onClick={() => handleExpenseAction('delete', expense)}
-                            className="text-red-600 hover:text-red-900"
-                          >
+                          <button className="text-red-600 hover:text-red-900">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </>
@@ -498,142 +302,9 @@ const EmployeeDashboard = () => {
     </div>
   );
 
-  const renderAnalytics = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Expense Analytics</h2>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => exportData('pdf')}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Export Report
-          </button>
-        </div>
-      </div>
-
-      {/* Analytics Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Monthly Spending Trend</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={safeArray(dashboard.monthlyTrends)}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-              <Bar dataKey="amount" fill="#3B82F6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Category Breakdown</h3>
-          <div className="space-y-4">
-            {safeArray(dashboard.expensesByCategory).map((category, index) => (
-              <div key={category.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index] }}
-                  ></div>
-                  <span className="text-sm font-medium">{category.name}</span>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold">${safeToLocaleString(category.value)}</div>
-                  <div className="text-xs text-gray-500">{safeToLocaleString(category.percentage)}%</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderProfile = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Profile Settings</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Profile Information */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Personal Information</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-              <input 
-                type="text" 
-                className="w-full p-2 border border-gray-300 rounded-lg" 
-                defaultValue={userProfile?.fullName || ''} 
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input 
-                type="email" 
-                className="w-full p-2 border border-gray-300 rounded-lg" 
-                defaultValue={userProfile?.email || ''} 
-                disabled 
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-              <input 
-                type="text" 
-                className="w-full p-2 border border-gray-300 rounded-lg" 
-                defaultValue={userProfile?.department || ''} 
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
-              <input 
-                type="text" 
-                className="w-full p-2 border border-gray-300 rounded-lg" 
-                defaultValue={userProfile?.employeeId || ''} 
-                disabled 
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Notification Settings */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="email-approval" className="rounded" defaultChecked />
-              <label htmlFor="email-approval" className="text-sm text-gray-700">Email notifications for approval status</label>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="email-reminders" className="rounded" />
-              <label htmlFor="email-reminders" className="text-sm text-gray-700">Email reminders for pending expenses</label>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="monthly-summary" className="rounded" defaultChecked />
-              <label htmlFor="monthly-summary" className="text-sm text-gray-700">Monthly expense summary</label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-          Save Changes
-        </button>
-      </div>
-    </div>
-  );
-
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'expenses', label: 'My Expenses', icon: Receipt },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { id: 'profile', label: 'Profile', icon: User }
+    { id: 'expenses', label: 'My Expenses', icon: Receipt }
   ];
 
   return (
@@ -656,7 +327,7 @@ const EmployeeDashboard = () => {
                   className="p-2 text-gray-400 hover:text-gray-600 relative"
                 >
                   <Bell className="h-6 w-6" />
-                  {notifications.length > 0 && (
+                  {notifications && notifications.length > 0 && (
                     <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                       {notifications.length}
                     </span>
@@ -668,23 +339,33 @@ const EmployeeDashboard = () => {
                       <h3 className="font-semibold">Notifications</h3>
                     </div>
                     <div className="max-h-64 overflow-y-auto">
-                      {notifications.map((notification) => (
-                        <div key={notification.id} className="p-3 border-b hover:bg-gray-50">
-                          <p className="text-sm text-gray-900">{notification.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
-                        </div>
-                      ))}
+                      {notifications && notifications.length > 0 ? (
+                        notifications.map((notification) => (
+                          <div key={notification.id} className="p-3 border-b hover:bg-gray-50 flex justify-between items-center">
+                            <div>
+                              <p className="text-sm text-gray-900">{notification.message}</p>
+                              <p className="text-xs text-gray-500 mt-1">{new Date(notification.id).toLocaleString()}</p>
+                            </div>
+                            <button 
+                              onClick={() => removeNotification(notification.id)}
+                              className="text-gray-400 hover:text-gray-600 ml-2"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="p-3 text-sm text-gray-500">No new notifications.</p>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {userProfile?.fullName?.charAt(0) || 'U'}
-                  </span>
+                  <span className="text-white text-sm font-medium">{user?.fullName?.[0] || 'U'}</span>
                 </div>
-                <span className="text-sm font-medium text-gray-700">{userProfile?.fullName || 'User'}</span>
+                <span className="text-sm font-medium text-gray-700">{user?.fullName || 'User'}</span>
                 <button
                   onClick={() => { logout(); navigate('/login'); }}
                   className="ml-4 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
@@ -725,112 +406,18 @@ const EmployeeDashboard = () => {
         <div className="transition-all duration-200">
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'expenses' && renderExpenses()}
-          {activeTab === 'analytics' && renderAnalytics()}
-          {activeTab === 'profile' && renderProfile()}
         </div>
       </div>
 
-      {/* Expense Modal */}
+      {/* Add Expense Modal */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
-              {selectedExpense ? 'Edit Expense' : 'New Expense'}
-            </h3>
-            <form onSubmit={handleExpenseSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input 
-                  type="text" 
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                  value={newExpense.description}
-                  onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input 
-                  type="number" 
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                  value={newExpense.amount}
-                  onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})}
-                  required
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select 
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                  value={newExpense.category}
-                  onChange={(e) => setNewExpense({...newExpense, category: e.target.value})}
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.name}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input 
-                  type="date" 
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                  value={newExpense.date}
-                  onChange={(e) => setNewExpense({...newExpense, date: e.target.value})}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Receipt</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
-                  <div className="space-y-1 text-center">
-                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                    <div className="flex text-sm text-gray-600">
-                      <label
-                        htmlFor="receipt-upload"
-                        className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
-                      >
-                        <span>Upload a file</span>
-                        <input
-                          id="receipt-upload"
-                          type="file"
-                          className="sr-only"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => setNewExpense({...newExpense, receipt: e.target.files[0]})}
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">PDF, JPG, PNG up to 10MB</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setShowExpenseModal(false);
-                    setSelectedExpense(null);
-                    setNewExpense({ description: '', amount: '', category: '', date: '', receipt: null });
-                  }}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  {selectedExpense ? 'Update' : 'Submit'}
-                </button>
-              </div>
-            </form>
+            <h3 className="text-lg font-semibold mb-4">Add New Expense</h3>
+            <AddExpenseForm 
+              onExpenseAdded={handleExpenseAdded}
+              onClose={() => setShowExpenseModal(false)}
+            />
           </div>
         </div>
       )}
@@ -838,4 +425,4 @@ const EmployeeDashboard = () => {
   );
 };
 
-export default EmployeeDashboard;
+export default Dashboard;

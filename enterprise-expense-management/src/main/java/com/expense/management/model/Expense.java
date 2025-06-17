@@ -1,5 +1,3 @@
-
-
 package com.expense.management.model;
 
 import java.time.LocalDate;
@@ -41,7 +39,7 @@ public class Expense {
 	private String description;
 
 
-	@CreationTimestamp
+//	@CreationTimestamp
 	private LocalDate date;
 
 	@Enumerated(EnumType.STRING)
@@ -55,6 +53,9 @@ public class Expense {
 	
 	@Column(name= "priority")
 	private String priority;
+	
+	@Column(name= "comments")
+	private String comments;
 	
 	@Lob
 	private byte[] attachment;

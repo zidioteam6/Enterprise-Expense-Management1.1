@@ -27,11 +27,13 @@ public class ExpenseService  {
 		public Expense add(Expense expense){
 			if (expense.getAmount()<3000) {
 				expense.setPriority("Low");
-				
+				expense.setApprovalLevel(ApprovalLevel.MANAGER);
 			} else if(expense.getAmount()<20000){
 				expense.setPriority("Medium");
+				expense.setApprovalLevel(ApprovalLevel.FINANCE);
 			}else {
 				expense.setPriority("High");
+				expense.setApprovalLevel(ApprovalLevel.ADMIN);
 			}
 			return expenseRepository.save(expense);
 		}

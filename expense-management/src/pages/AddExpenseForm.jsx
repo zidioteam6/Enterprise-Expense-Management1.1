@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../utils/axios';
+import { useNotification } from '../context/NotificationContext';
 
 const AddExpenseForm = ({ onExpenseAdded, onClose }) => {
   const [formData, setFormData] = useState({
@@ -12,13 +13,56 @@ const AddExpenseForm = ({ onExpenseAdded, onClose }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [categories, setCategories] = useState({});
+  const [approvalFeedback, setApprovalFeedback] = useState('');
+
+  const { addNotification } = useNotification();
+
+  // Define the auto-approval threshold
+  const AUTO_APPROVAL_THRESHOLD = 100.0;
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await api.get('/expenses/categories');
+        // Assuming response.data is a map of code to name, e.g., { "FOOD": "Food" }
+        const transformedCategories = Object.entries(response.data).reduce((acc, [code, name]) => {
+          // You might want a more robust way to get emojis or fetch them from backend
+          acc[code] = { name: name, emoji: '🤷‍♀️' }; // Placeholder emoji
+          return acc;
+        }, {});
+        setCategories(transformedCategories);
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+        setError('Failed to load expense categories');
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
+    console.log(`Input changed: name=${name}, value=${value}`);
     if (name === 'attachment') {
       setFormData(prev => ({ ...prev, attachment: files[0] }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      console.log('Updated formData:', { ...formData, [name]: value });
+      if (name === 'amount') {
+        const amountValue = parseFloat(value);
+        if (!isNaN(amountValue)) {
+          if (amountValue <= AUTO_APPROVAL_THRESHOLD) {
+            setApprovalFeedback('This expense will be automatically approved.');
+          } else {
+            setApprovalFeedback('This expense will require manager approval.');
+          }
+        } else {
+          setApprovalFeedback(''); // Clear feedback if amount is not a valid number
+        }
+      }
     }
   };
 
@@ -41,10 +85,21 @@ const AddExpenseForm = ({ onExpenseAdded, onClose }) => {
         },
       });
 
-      onExpenseAdded(response.data);
+      const data = response.data;
+      onExpenseAdded(data.expense);
+      
+      // Show success message as a notification
+      const message = data.expense.approvalStatus === 'APPROVED' 
+        ? `Your expense for ${data.expense.description} ($${data.expense.amount}) has been automatically approved!` 
+        : `Your expense for ${data.expense.description} ($${data.expense.amount}) has been submitted and is pending approval.`;
+      addNotification(message, 'success');
+      
       onClose();
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to add expense');
+      console.error('Error submitting expense:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to add expense';
+      addNotification(errorMessage, 'error');
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -84,6 +139,13 @@ const AddExpenseForm = ({ onExpenseAdded, onClose }) => {
               min="0"
               step="0.01"
             />
+            {approvalFeedback && (
+              <p className={`text-sm mt-2 ${
+                approvalFeedback.includes('automatically approved') ? 'text-green-600' : 'text-orange-600'
+              }`}>
+                {approvalFeedback}
+              </p>
+            )}
           </div>
 
           <div className="mb-4">
@@ -98,11 +160,11 @@ const AddExpenseForm = ({ onExpenseAdded, onClose }) => {
               required
             >
               <option value="">Select a category</option>
-              <option value="TRAVEL">Travel</option>
-              <option value="FOOD">Food</option>
-              <option value="OFFICE_SUPPLIES">Office Supplies</option>
-              <option value="UTILITIES">Utilities</option>
-              <option value="OTHER">Other</option>
+              {Object.entries(categories).map(([key, catInfo]) => (
+                <option key={key} value={key}>
+                  {catInfo.emoji} {catInfo.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -176,7 +238,7 @@ const AddExpenseForm = ({ onExpenseAdded, onClose }) => {
             <button
               type="button"
               onClick={onClose}
-              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
             >
               Cancel
             </button>

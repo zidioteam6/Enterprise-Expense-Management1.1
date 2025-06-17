@@ -4,6 +4,7 @@ package com.expense.management.controller;
 import com.expense.management.model.Budget;
 import com.expense.management.model.Expense;
 import com.expense.management.model.ExpenseStatus;
+import com.expense.management.enums.ApprovalLevel;
 import com.expense.management.repository.ExpenseRepository;
 import com.expense.management.services.ExpenseService;
 import com.expense.management.util.HibernateUtil;
@@ -19,6 +20,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,33 +45,45 @@ public class ExpenseController {
     }
 	
 	
-	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE	)
+	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<?> createExpense(
 			 @RequestParam("amount") double amount,
 		        @RequestParam("category") String category,
 		        @RequestParam("description") String description,
-		        @RequestParam(value = "attachment", required = false) MultipartFile attachmentFile) throws IOException {
+		        @RequestParam("date") String dateString,
+		        @RequestParam(value = "comments", required = false) String comments,
+		        @RequestParam(value = "receipt", required = false) MultipartFile receipt) throws IOException {
 	    
 		 Expense expense = new Expense();
 		    expense.setAmount(amount);
 		    expense.setCategory(category);
 		    expense.setDescription(description);
-		    expense.setApprovalStatus(ExpenseStatus.PENDING);
 		    
-		    System.out.println("bye");
-		    if (attachmentFile != null && !attachmentFile.isEmpty()) {
+		    // Auto-approve expenses under $100
+		    if (amount <= 100.0) {
+		        expense.setApprovalStatus(ExpenseStatus.APPROVED);
+		    } else {
+		        expense.setApprovalStatus(ExpenseStatus.PENDING);
+		    }
+		    
+		    expense.setComments(comments);
+		    expense.setDate(LocalDate.parse(dateString));
+		    
+		    if (receipt != null && !receipt.isEmpty()) {
 		        try {
-		            expense.setAttachment(attachmentFile.getBytes());
-		            expense.setAttachmentType(attachmentFile.getContentType());
+		            expense.setAttachment(receipt.getBytes());
+		            expense.setAttachmentType(receipt.getContentType());
 		        } catch (IOException e) {
-		            return ResponseEntity.badRequest().body("File processing error");
+		            return ResponseEntity.badRequest().body(Map.of("error", "File processing error"));
 		        }
 		    }
 
 		    expenseService.add(expense);
 		    
-		    System.out.println("hello");
-		    return new ResponseEntity<>("Expense saved successfully", HttpStatus.OK);
+		    return ResponseEntity.ok(Map.of(
+		        "message", "Expense saved successfully",
+		        "expense", expense
+		    ));
 	}
 	
 	
@@ -188,6 +203,17 @@ public class ExpenseController {
             }
             return categoryExpenseMap;
         }
+    }
+
+    @GetMapping("/categories")
+    public ResponseEntity<Map<String, String>> getExpenseCategories() {
+        Map<String, String> categories = new HashMap<>();
+        categories.put("TRAVEL", "✈️ Travel");
+        categories.put("FOOD", "🍽️ Food");
+        categories.put("OFFICE_SUPPLIES", "📦 Office Supplies");
+        categories.put("UTILITIES", "💡 Utilities");
+        categories.put("OTHER", "📝 Other");
+        return ResponseEntity.ok(categories);
     }
 
     //////////////////////////////////////////////////
