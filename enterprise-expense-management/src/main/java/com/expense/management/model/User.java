@@ -2,6 +2,7 @@ package com.expense.management.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -55,37 +56,35 @@ public class User {
     @Column(name = "profile_image_type")
     private String profileImageType;
 
-    // Getters and Setters for new fields
-    public byte[] getProfileImage() {
-        return profileImage;
-    }
-
-    public void setProfileImage(byte[] profileImage) {
-        this.profileImage = profileImage;
-    }
-
-    public String getProfileImageType() {
-        return profileImageType;
-    }
-
-    public void setProfileImageType(String profileImageType) {
-        this.profileImageType = profileImageType;
-    }
-
-    // Existing getters and setters (assuming lombok generates most)
-    // If lombok @Data isn't fully generating, these would be needed:
+    // // Getters and Setters for all fields
     // public Long getId() { return id; }
     // public void setId(Long id) { this.id = id; }
+
     // public String getEmail() { return email; }
     // public void setEmail(String email) { this.email = email; }
+
     // public String getPassword() { return password; }
     // public void setPassword(String password) { this.password = password; }
+
+    // public List<Expense> getExpenses() { return expenses; }
+    // public void setExpenses(List<Expense> expenses) { this.expenses = expenses; }
+
     // public String getFullName() { return fullName; }
     // public void setFullName(String fullName) { this.fullName = fullName; }
+
     // public Role getRole() { return role; }
     // public void setRole(Role role) { this.role = role; }
+
     // public LocalDateTime getCreatedAt() { return createdAt; }
     // public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
     // public LocalDateTime getUpdatedAt() { return updatedAt; }
     // public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    // public byte[] getProfileImage() { return profileImage; }
+    // public void setProfileImage(byte[] profileImage) { this.profileImage = profileImage; }
+
+    // public String getProfileImageType() { return profileImageType; }
+    // public void setProfileImageType(String profileImageType) { this.profileImageType = profileImageType; }
+
 }

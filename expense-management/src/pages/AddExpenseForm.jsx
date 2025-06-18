@@ -75,7 +75,12 @@ const AddExpenseForm = ({ onExpenseAdded, onClose }) => {
       const formDataToSend = new FormData();
       Object.keys(formData).forEach(key => {
         if (formData[key] !== null) {
-          formDataToSend.append(key, formData[key]);
+          // Fix: backend expects 'receipt' not 'attachment'
+          if (key === 'attachment') {
+            formDataToSend.append('receipt', formData[key]);
+          } else {
+            formDataToSend.append(key, formData[key]);
+          }
         }
       });
 

@@ -19,6 +19,11 @@ import org.springframework.web.multipart.MultipartFile;
 //import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
+<<<<<<< HEAD
+import com.expense.management.model.User;
+import com.expense.management.repository.UserRepository;
+=======
+>>>>>>> a77d46d3bb4094629e6224485eba642b84362d00
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -56,8 +61,12 @@ public class ExpenseController {
 	ExpenseRepository expenseRepository;
 
 	@Autowired
+<<<<<<< HEAD
+	UserRepository userRepository;
+=======
 	com.expense.management.repository.UserRepository userRepository;
 
+>>>>>>> a77d46d3bb4094629e6224485eba642b84362d00
 
     ExpenseController(AuditLogController auditLogController) {
         this.auditLogController = auditLogController;
@@ -88,6 +97,12 @@ public class ExpenseController {
 		    expense.setComments(comments);
 		    expense.setDate(LocalDate.parse(dateString));
 		    
+		    // Set the current user who is creating the expense
+		    String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+		    User currentUser = userRepository.findByEmail(userEmail)
+		        .orElseThrow(() -> new RuntimeException("User not found"));
+		    expense.setUser(currentUser);
+		    
 		    if (receipt != null && !receipt.isEmpty()) {
 		        try {
 		            expense.setAttachment(receipt.getBytes());
@@ -104,9 +119,32 @@ public class ExpenseController {
 
 		    expenseService.add(expense);
 		    
+		    // Create clean expense data without circular references
+		    Map<String, Object> cleanExpense = new HashMap<>();
+		    cleanExpense.put("id", expense.getId());
+		    cleanExpense.put("amount", expense.getAmount());
+		    cleanExpense.put("category", expense.getCategory());
+		    cleanExpense.put("description", expense.getDescription());
+		    cleanExpense.put("date", expense.getDate());
+		    cleanExpense.put("approvalStatus", expense.getApprovalStatus());
+		    cleanExpense.put("approvalLevel", expense.getApprovalLevel());
+		    cleanExpense.put("priority", expense.getPriority());
+		    cleanExpense.put("comments", expense.getComments());
+		    cleanExpense.put("attachmentType", expense.getAttachmentType());
+		    
+		    // Add user information without circular reference
+		    if (expense.getUser() != null) {
+		        Map<String, Object> userInfo = new HashMap<>();
+		        userInfo.put("id", expense.getUser().getId());
+		        userInfo.put("email", expense.getUser().getEmail());
+		        userInfo.put("fullName", expense.getUser().getFullName());
+		        userInfo.put("role", expense.getUser().getRole() != null ? expense.getUser().getRole().getName() : null);
+		        cleanExpense.put("user", userInfo);
+		    }
+		    
 		    return ResponseEntity.ok(Map.of(
 		        "message", "Expense saved successfully",
-		        "expense", expense
+		        "expense", cleanExpense
 		    ));
 	}
 	
@@ -115,7 +153,38 @@ public class ExpenseController {
 	
     @GetMapping
     public ResponseEntity<?> getAllExpenses() {
-        return new ResponseEntity<>( expenseService.getAll(), HttpStatus.OK);
+        List<Expense> expenses = expenseService.getAll();
+        
+        // Create clean expense data without circular references
+        List<Map<String, Object>> cleanExpenses = expenses.stream()
+            .map(expense -> {
+                Map<String, Object> cleanExpense = new HashMap<>();
+                cleanExpense.put("id", expense.getId());
+                cleanExpense.put("amount", expense.getAmount());
+                cleanExpense.put("category", expense.getCategory());
+                cleanExpense.put("description", expense.getDescription());
+                cleanExpense.put("date", expense.getDate());
+                cleanExpense.put("approvalStatus", expense.getApprovalStatus());
+                cleanExpense.put("approvalLevel", expense.getApprovalLevel());
+                cleanExpense.put("priority", expense.getPriority());
+                cleanExpense.put("comments", expense.getComments());
+                cleanExpense.put("attachmentType", expense.getAttachmentType());
+                
+                // Add user information without circular reference
+                if (expense.getUser() != null) {
+                    Map<String, Object> userInfo = new HashMap<>();
+                    userInfo.put("id", expense.getUser().getId());
+                    userInfo.put("email", expense.getUser().getEmail());
+                    userInfo.put("fullName", expense.getUser().getFullName());
+                    userInfo.put("role", expense.getUser().getRole() != null ? expense.getUser().getRole().getName() : null);
+                    cleanExpense.put("user", userInfo);
+                }
+                
+                return cleanExpense;
+            })
+            .collect(java.util.stream.Collectors.toList());
+        
+        return new ResponseEntity<>(cleanExpenses, HttpStatus.OK);
     }
 
     
