@@ -41,6 +41,9 @@ const AdminDashboard = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState(null);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseModalMode, setExpenseModalMode] = useState('view'); // 'view', 'edit', 'delete'
 
   // Backend data states
   const [dashboardData, setDashboardData] = useState(null);
@@ -171,6 +174,91 @@ const AdminDashboard = () => {
   const exportData = (type) => {
     // Simulate export functionality
     alert(`Exporting ${type} data...`);
+  };
+
+  const handleExpenseAction = async (action, expense) => {
+    try {
+      const token = localStorage.getItem('token');
+      switch (action) {
+        case 'view':
+          setSelectedExpense(expense);
+          setExpenseModalMode('view');
+          setShowExpenseModal(true);
+          break;
+        case 'edit':
+          setSelectedExpense(expense);
+          setExpenseModalMode('edit');
+          setShowExpenseModal(true);
+          break;
+        case 'delete':
+          if (window.confirm('Are you sure you want to delete this expense?')) {
+            await axios.delete(`${API_BASE}/api/expenses/${expense.id}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            // Update the expenses list
+            setExpenses(expenses.filter(e => e.id !== expense.id));
+            // Update dashboard data
+            setDashboardData(prev => ({
+              ...prev,
+              recentExpenses: prev.recentExpenses.filter(e => e.id !== expense.id)
+            }));
+          }
+          break;
+        case 'approve':
+          await axios.put(`${API_BASE}/api/expenses/${expense.id}/approve`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          // Update the expense status
+          setExpenses(expenses.map(e => 
+            e.id === expense.id ? { ...e, status: 'Approved' } : e
+          ));
+          break;
+        case 'reject':
+          await axios.put(`${API_BASE}/api/expenses/${expense.id}/reject`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          // Update the expense status
+          setExpenses(expenses.map(e => 
+            e.id === expense.id ? { ...e, status: 'Rejected' } : e
+          ));
+          break;
+      }
+    } catch (error) {
+      console.error('Error handling expense action:', error);
+      setError(error?.response?.data?.message || 'Failed to perform action');
+    }
+  };
+
+  const handleExpenseSubmit = async (updatedExpense) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        `${API_BASE}/api/expenses/${updatedExpense.id}`,
+        updatedExpense,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      // Update the expenses list
+      setExpenses(expenses.map(e => 
+        e.id === updatedExpense.id ? response.data : e
+      ));
+      
+      // Update dashboard data
+      setDashboardData(prev => ({
+        ...prev,
+        recentExpenses: prev.recentExpenses.map(e => 
+          e.id === updatedExpense.id ? response.data : e
+        )
+      }));
+      
+      setShowExpenseModal(false);
+      setSelectedExpense(null);
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      setError(error?.response?.data?.message || 'Failed to update expense');
+    }
   };
 
   const renderOverview = () => (
@@ -445,15 +533,36 @@ const AdminDashboard = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button 
+                        onClick={() => handleExpenseAction('view', expense)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
                         <Eye className="h-4 w-4" />
                       </button>
                       {expense.status === 'Pending' && (
                         <>
-                          <button className="text-green-600 hover:text-green-900">
+                          <button 
+                            onClick={() => handleExpenseAction('edit', expense)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleExpenseAction('delete', expense)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleExpenseAction('approve', expense)}
+                            className="text-green-600 hover:text-green-900"
+                          >
                             <CheckCircle className="h-4 w-4" />
                           </button>
-                          <button className="text-red-600 hover:text-red-900">
+                          <button 
+                            onClick={() => handleExpenseAction('reject', expense)}
+                            className="text-red-600 hover:text-red-900"
+                          >
                             <XCircle className="h-4 w-4" />
                           </button>
                         </>
@@ -881,6 +990,135 @@ const AdminDashboard = () => {
               >
                 Save
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expense Modal */}
+      {showExpenseModal && selectedExpense && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">
+              {expenseModalMode === 'view' ? 'Expense Details' : 
+               expenseModalMode === 'edit' ? 'Edit Expense' : 'Delete Expense'}
+            </h3>
+            
+            {expenseModalMode === 'view' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                  <p className="text-sm text-gray-900">{selectedExpense.employee}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <p className="text-sm text-gray-900">{selectedExpense.category}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                  <p className="text-sm text-gray-900">${safeToLocaleString(selectedExpense.amount)}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <p className="text-sm text-gray-900">{selectedExpense.date}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedExpense.status)}`}>
+                    {selectedExpense.status}
+                  </span>
+                </div>
+                {selectedExpense.receipt && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Receipt</label>
+                    <a 
+                      href={selectedExpense.receipt} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      View Receipt
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {expenseModalMode === 'edit' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select 
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    value={selectedExpense.category}
+                    onChange={(e) => setSelectedExpense({...selectedExpense, category: e.target.value})}
+                  >
+                    <option value="Travel">Travel</option>
+                    <option value="Food">Food</option>
+                    <option value="Office Supplies">Office Supplies</option>
+                    <option value="Software">Software</option>
+                    <option value="Training">Training</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                  <input 
+                    type="number" 
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    value={selectedExpense.amount}
+                    onChange={(e) => setSelectedExpense({...selectedExpense, amount: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    value={selectedExpense.date}
+                    onChange={(e) => setSelectedExpense({...selectedExpense, date: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Receipt</label>
+                  <input 
+                    type="file" 
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setSelectedExpense({...selectedExpense, receipt: reader.result});
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button 
+                onClick={() => {
+                  setShowExpenseModal(false);
+                  setSelectedExpense(null);
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                {expenseModalMode === 'view' ? 'Close' : 'Cancel'}
+              </button>
+              {expenseModalMode === 'edit' && (
+                <button 
+                  onClick={() => handleExpenseSubmit(selectedExpense)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Save Changes
+                </button>
+              )}
             </div>
           </div>
         </div>

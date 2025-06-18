@@ -18,13 +18,29 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 //import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+// PDF generation imports
+import com.itextpdf.text.Document;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.Element;
+import com.itextpdf.text.Font;
+import com.itextpdf.text.FontFactory;
+import com.itextpdf.text.Paragraph;
+import com.itextpdf.text.Phrase;
+import com.itextpdf.text.pdf.PdfPCell;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
+import com.itextpdf.text.pdf.BaseFont;
 
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
@@ -38,6 +54,9 @@ public class ExpenseController {
 
 	@Autowired
 	ExpenseRepository expenseRepository;
+
+	@Autowired
+	com.expense.management.repository.UserRepository userRepository;
 
 
     ExpenseController(AuditLogController auditLogController) {
@@ -77,6 +96,11 @@ public class ExpenseController {
 		            return ResponseEntity.badRequest().body(Map.of("error", "File processing error"));
 		        }
 		    }
+
+		    // Associate with current user
+		    String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+		    com.expense.management.model.User user = userRepository.findByEmail(userEmail).orElse(null);
+		    expense.setUser(user);
 
 		    expenseService.add(expense);
 		    
@@ -148,23 +172,49 @@ public class ExpenseController {
     }
 
     @DeleteMapping("/{expenseId}")
-    public String deleteExpense(@PathVariable Long expenseId) {
+    public ResponseEntity<?> deleteExpense(@PathVariable Long expenseId) {
+        System.out.println("=== DELETE EXPENSE ENDPOINT CALLED ===");
+        System.out.println("Expense ID: " + expenseId);
+        System.out.println("Current user: " + SecurityContextHolder.getContext().getAuthentication().getName());
+        
         Transaction transaction = null;
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             transaction = session.beginTransaction();
             Expense expense = session.get(Expense.class, expenseId);
+            
+            System.out.println("Found expense: " + (expense != null ? "YES" : "NO"));
             if (expense != null) {
-                session.delete(expense);
-                transaction.commit();
-                return "Expense deleted successfully!";
+                System.out.println("Expense user: " + (expense.getUser() != null ? expense.getUser().getEmail() : "NULL"));
+                System.out.println("Expense status: " + expense.getApprovalStatus());
             }
-            return "Expense not found.";
+            
+            if (expense == null) {
+                System.out.println("Expense not found, returning 404");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Expense not found."));
+            }
+            // Get current user
+            String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            if (expense.getUser() == null || !expense.getUser().getEmail().equals(userEmail)) {
+                System.out.println("User not authorized to delete this expense");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not allowed to delete this expense."));
+            }
+            if (expense.getApprovalStatus() != ExpenseStatus.PENDING) {
+                System.out.println("Expense is not pending, cannot delete");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only pending expenses can be deleted."));
+            }
+            
+            System.out.println("Deleting expense...");
+            session.delete(expense);
+            transaction.commit();
+            System.out.println("Expense deleted successfully!");
+            return ResponseEntity.ok(Map.of("message", "Expense deleted successfully!"));
         } catch (Exception e) {
+            System.out.println("Error deleting expense: " + e.getMessage());
+            e.printStackTrace();
             if (transaction != null) {
                 transaction.rollback();
             }
-            e.printStackTrace();
-            return "Error deleting expense.";
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Error deleting expense."));
         }
     }
 
@@ -257,6 +307,111 @@ public class ExpenseController {
 //    }
 
     ///////////////////////////////////
+
+    @GetMapping("/export/{format}")
+    public ResponseEntity<byte[]> exportExpenses(@PathVariable String format) {
+        try {
+            // Get current user
+            String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            
+            // Get user's expenses
+            List<Expense> userExpenses = expenseService.getAll();
+            
+            if (format.equalsIgnoreCase("pdf")) {
+                byte[] pdfBytes = generatePdfReport(userExpenses);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=expenses_report.pdf")
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .body(pdfBytes);
+            } else if (format.equalsIgnoreCase("xlsx")) {
+                // For now, return a simple text file as placeholder
+                String csvContent = generateCsvReport(userExpenses);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=expenses_report.csv")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body(csvContent.getBytes());
+            } else {
+                return ResponseEntity.badRequest().body("Unsupported format".getBytes());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error generating report".getBytes());
+        }
+    }
+    
+    private byte[] generatePdfReport(List<Expense> expenses) throws DocumentException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Document document = new Document();
+        PdfWriter.getInstance(document, baos);
+        
+        document.open();
+        
+        // Add title
+        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+        Paragraph title = new Paragraph("Expense Report", titleFont);
+        title.setAlignment(Element.ALIGN_CENTER);
+        document.add(title);
+        document.add(new Paragraph(" ")); // Spacing
+        
+        // Add date
+        Font dateFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
+        Paragraph date = new Paragraph("Generated on: " + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")), dateFont);
+        document.add(date);
+        document.add(new Paragraph(" ")); // Spacing
+        
+        // Create table
+        PdfPTable table = new PdfPTable(5);
+        table.setWidthPercentage(100);
+        
+        // Add headers
+        Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
+        String[] headers = {"Date", "Category", "Description", "Amount", "Status"};
+        for (String header : headers) {
+            PdfPCell cell = new PdfPCell(new Phrase(header, headerFont));
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setPadding(5);
+            table.addCell(cell);
+        }
+        
+        // Add data
+        Font dataFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
+        double totalAmount = 0;
+        for (Expense expense : expenses) {
+            table.addCell(new PdfPCell(new Phrase(expense.getDate().toString(), dataFont)));
+            table.addCell(new PdfPCell(new Phrase(expense.getCategory(), dataFont)));
+            table.addCell(new PdfPCell(new Phrase(expense.getDescription(), dataFont)));
+            table.addCell(new PdfPCell(new Phrase("$" + String.format("%.2f", expense.getAmount()), dataFont)));
+            table.addCell(new PdfPCell(new Phrase(expense.getApprovalStatus().toString(), dataFont)));
+            totalAmount += expense.getAmount();
+        }
+        
+        document.add(table);
+        document.add(new Paragraph(" ")); // Spacing
+        
+        // Add total
+        Font totalFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
+        Paragraph total = new Paragraph("Total Amount: $" + String.format("%.2f", totalAmount), totalFont);
+        document.add(total);
+        
+        document.close();
+        return baos.toByteArray();
+    }
+    
+    private String generateCsvReport(List<Expense> expenses) {
+        StringBuilder csv = new StringBuilder();
+        csv.append("Date,Category,Description,Amount,Status\n");
+        
+        for (Expense expense : expenses) {
+            csv.append(expense.getDate()).append(",")
+               .append(expense.getCategory()).append(",")
+               .append("\"").append(expense.getDescription().replace("\"", "\"\"")).append("\",")
+               .append(expense.getAmount()).append(",")
+               .append(expense.getApprovalStatus()).append("\n");
+        }
+        
+        return csv.toString();
+    }
 
 }
 

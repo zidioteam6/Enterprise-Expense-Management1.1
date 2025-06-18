@@ -41,6 +41,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/employee/**").hasAuthority("ROLE_EMPLOYEE")
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/expenses/**").authenticated()
+                .requestMatchers("/api/expenses/**").authenticated()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2

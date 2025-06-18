@@ -14,8 +14,19 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // Log detailed request information
+    console.log('=== AXIOS REQUEST ===');
+    console.log('Method:', config.method?.toUpperCase());
+    console.log('URL:', config.url);
+    console.log('Base URL:', config.baseURL);
+    console.log('Full URL:', config.baseURL + config.url);
+    console.log('Headers:', config.headers);
+    console.log('Token present:', !!token);
+    console.log('=====================');
+    
     return config;
   },
   (error) => {
@@ -26,9 +37,30 @@ api.interceptors.request.use(
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('=== AXIOS RESPONSE ===');
+    console.log('Status:', response.status);
+    console.log('Method:', response.config.method?.toUpperCase());
+    console.log('URL:', response.config.url);
+    console.log('Data:', response.data);
+    console.log('======================');
+    return response;
+  },
   (error) => {
-    console.error('Response error:', error.response?.status, error.response?.data);
+    console.error('=== AXIOS ERROR ===');
+    console.error('Error message:', error.message);
+    console.error('Error status:', error.response?.status);
+    console.error('Error data:', error.response?.data);
+    console.error('Error config:', error.config);
+    console.error('Error URL:', error.config?.url);
+    console.error('Error method:', error.config?.method);
+    console.error('===================');
+    
+    // Don't auto-redirect on DELETE requests - let the component handle the error
+    if (error.config?.method?.toLowerCase() === 'delete') {
+      console.log('DELETE request failed, not redirecting automatically');
+      return Promise.reject(error);
+    }
     
     if (error.response?.status === 401) {
       // Clear auth data and redirect to login
