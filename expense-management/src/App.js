@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import ManagerDashboard from './pages/ManagerDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
@@ -30,7 +31,16 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/manager-dashboard"
+          element={
+            <ProtectedRoute managerOnly={true}>
+              <ManagerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/home" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AuthProvider>
   );

@@ -288,11 +288,21 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
+<<<<<<< HEAD
+              {safeArray(expenses)
+                .filter(expense => {
+                  const description = expense?.description || '';
+                  const category = expense?.category || '';
+                  return description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         category.toLowerCase().includes(searchTerm.toLowerCase());
+                })
+=======
               {(Array.isArray(expenses) ? expenses : [])
                 .filter(expense => 
                   expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                   expense.category.toLowerCase().includes(searchTerm.toLowerCase())
                 )
+>>>>>>> a77d46d3bb4094629e6224485eba642b84362d00
                 .map((expense) => (
                 <tr key={expense.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>

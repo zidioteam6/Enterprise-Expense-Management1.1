@@ -29,6 +29,12 @@ const LoginPage = () => {
         (Array.isArray(user.roles) && user.roles.includes('ROLE_ADMIN'))
       ) {
         navigate('/admin-dashboard');
+      } else if (
+        user.role === 'ROLE_MANAGER' ||
+        user.roles === 'ROLE_MANAGER' ||
+        (Array.isArray(user.roles) && user.roles.includes('ROLE_MANAGER'))
+      ) {
+        navigate('/manager-dashboard');
       } else {
         navigate('/dashboard');
       }
@@ -60,6 +66,12 @@ const LoginPage = () => {
           (Array.isArray(userData.roles) && userData.roles.includes('ROLE_ADMIN'))
         ) {
           navigate('/admin-dashboard');
+        } else if (
+          userData.role === 'ROLE_MANAGER' ||
+          userData.roles === 'ROLE_MANAGER' ||
+          (Array.isArray(userData.roles) && userData.roles.includes('ROLE_MANAGER'))
+        ) {
+          navigate('/manager-dashboard');
         } else {
           navigate('/dashboard');
         }
