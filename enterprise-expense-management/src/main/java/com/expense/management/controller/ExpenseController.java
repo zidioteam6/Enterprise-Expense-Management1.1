@@ -3,6 +3,7 @@ package com.expense.management.controller;
 import com.expense.management.model.Budget;
 import com.expense.management.model.Expense;
 import com.expense.management.model.ExpenseStatus;
+import com.expense.management.model.User;
 import com.expense.management.enums.ApprovalLevel;
 import com.expense.management.repository.ExpenseRepository;
 import com.expense.management.services.ExpenseService;
@@ -18,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
