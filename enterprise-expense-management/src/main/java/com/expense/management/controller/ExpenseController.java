@@ -19,9 +19,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import com.expense.management.model.User;
-import com.expense.management.repository.UserRepository;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -61,10 +58,7 @@ public class ExpenseController {
     ExpenseRepository expenseRepository;
 
     @Autowired
-
-    UserRepository userRepository;
-
-    // com.expense.management.repository.UserRepository userRepository;
+    com.expense.management.repository.UserRepository userRepository;
 
     @Autowired
     private CloudinaryService cloudinaryService;
@@ -260,6 +254,19 @@ public class ExpenseController {
                 System.out.println("Expense is not pending, cannot delete");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("message", "Only pending expenses can be deleted."));
+            }
+
+            // Delete receipt from Cloudinary if exists
+            if (expense.getReceiptUrl() != null && !expense.getReceiptUrl().isEmpty()) {
+                try {
+                    String publicId = cloudinaryService.extractPublicIdFromUrl(expense.getReceiptUrl());
+                    if (publicId != null) {
+                        cloudinaryService.deleteFile(publicId);
+                    }
+                } catch (Exception e) {
+                    System.out.println("Warning: Failed to delete receipt from Cloudinary: " + e.getMessage());
+                    // Continue with expense deletion even if Cloudinary deletion fails
+                }
             }
 
             // Delete receipt from Cloudinary if exists
