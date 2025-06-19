@@ -7,6 +7,7 @@ import com.expense.management.model.ExpenseStatus;
 import com.expense.management.enums.ApprovalLevel;
 import com.expense.management.repository.ExpenseRepository;
 import com.expense.management.services.ExpenseService;
+import com.expense.management.services.CloudinaryService;
 import com.expense.management.util.HibernateUtil;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
@@ -16,7 +17,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-//import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -42,6 +42,9 @@ import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
 import com.itextpdf.text.pdf.BaseFont;
 
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/expenses")
@@ -58,6 +61,8 @@ public class ExpenseController {
 	@Autowired
 	com.expense.management.repository.UserRepository userRepository;
 
+    @Autowired
+    private CloudinaryService cloudinaryService;
 
     ExpenseController(AuditLogController auditLogController) {
         this.auditLogController = auditLogController;
@@ -70,13 +75,15 @@ public class ExpenseController {
 		        @RequestParam("category") String category,
 		        @RequestParam("description") String description,
 		        @RequestParam("date") String dateString,
+		        @RequestParam(value = "priority", required = false) String priority,
 		        @RequestParam(value = "comments", required = false) String comments,
-		        @RequestParam(value = "receipt", required = false) MultipartFile receipt) throws IOException {
+		        @RequestParam(value = "attachment", required = false) MultipartFile attachment) throws IOException {
 	    
 		 Expense expense = new Expense();
 		    expense.setAmount(amount);
 		    expense.setCategory(category);
 		    expense.setDescription(description);
+		    expense.setPriority(priority != null ? priority : "MEDIUM");
 		    
 		    // Auto-approve expenses under $100
 		    if (amount <= 100.0) {
@@ -88,12 +95,15 @@ public class ExpenseController {
 		    expense.setComments(comments);
 		    expense.setDate(LocalDate.parse(dateString));
 		    
-		    if (receipt != null && !receipt.isEmpty()) {
+		    // Handle receipt upload to Cloudinary
+		    if (attachment != null && !attachment.isEmpty()) {
 		        try {
-		            expense.setAttachment(receipt.getBytes());
-		            expense.setAttachmentType(receipt.getContentType());
-		        } catch (IOException e) {
-		            return ResponseEntity.badRequest().body(Map.of("error", "File processing error"));
+		            Map<String, Object> uploadResult = cloudinaryService.uploadReceipt(attachment);
+		            String receiptUrl = cloudinaryService.getSecureUrl(uploadResult);
+		            expense.setReceiptUrl(receiptUrl);
+		            expense.setAttachmentType(attachment.getContentType());
+		        } catch (Exception e) {
+		            return ResponseEntity.badRequest().body(Map.of("error", "Receipt upload failed: " + e.getMessage()));
 		        }
 		    }
 
@@ -104,10 +114,24 @@ public class ExpenseController {
 
 		    expenseService.add(expense);
 		    
-		    return ResponseEntity.ok(Map.of(
-		        "message", "Expense saved successfully",
-		        "expense", expense
-		    ));
+		    // Create a custom response object to avoid circular reference
+		    Map<String, Object> response = new HashMap<>();
+		    response.put("message", "Expense saved successfully");
+		    
+		    Map<String, Object> expenseData = new HashMap<>();
+		    expenseData.put("id", expense.getId());
+		    expenseData.put("amount", expense.getAmount());
+		    expenseData.put("category", expense.getCategory());
+		    expenseData.put("description", expense.getDescription());
+		    expenseData.put("date", expense.getDate());
+		    expenseData.put("approvalStatus", expense.getApprovalStatus());
+		    expenseData.put("comments", expense.getComments());
+		    expenseData.put("priority", expense.getPriority());
+		    expenseData.put("receiptUrl", expense.getReceiptUrl());
+		    
+		    response.put("expense", expenseData);
+		    
+		    return ResponseEntity.ok(response);
 	}
 	
 	
@@ -177,10 +201,9 @@ public class ExpenseController {
         System.out.println("Expense ID: " + expenseId);
         System.out.println("Current user: " + SecurityContextHolder.getContext().getAuthentication().getName());
         
-        Transaction transaction = null;
-        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            transaction = session.beginTransaction();
-            Expense expense = session.get(Expense.class, expenseId);
+        try {
+            // Use Spring Data JPA repository instead of HibernateUtil
+            Expense expense = expenseRepository.findById(expenseId).orElse(null);
             
             System.out.println("Found expense: " + (expense != null ? "YES" : "NO"));
             if (expense != null) {
@@ -192,28 +215,39 @@ public class ExpenseController {
                 System.out.println("Expense not found, returning 404");
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Expense not found."));
             }
+            
             // Get current user
             String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
             if (expense.getUser() == null || !expense.getUser().getEmail().equals(userEmail)) {
                 System.out.println("User not authorized to delete this expense");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not allowed to delete this expense."));
             }
+            
             if (expense.getApprovalStatus() != ExpenseStatus.PENDING) {
                 System.out.println("Expense is not pending, cannot delete");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only pending expenses can be deleted."));
             }
             
+            // Delete receipt from Cloudinary if exists
+            if (expense.getReceiptUrl() != null && !expense.getReceiptUrl().isEmpty()) {
+                try {
+                    String publicId = cloudinaryService.extractPublicIdFromUrl(expense.getReceiptUrl());
+                    if (publicId != null) {
+                        cloudinaryService.deleteFile(publicId);
+                    }
+                } catch (Exception e) {
+                    System.out.println("Warning: Failed to delete receipt from Cloudinary: " + e.getMessage());
+                    // Continue with expense deletion even if Cloudinary deletion fails
+                }
+            }
+            
             System.out.println("Deleting expense...");
-            session.delete(expense);
-            transaction.commit();
+            expenseRepository.delete(expense);
             System.out.println("Expense deleted successfully!");
             return ResponseEntity.ok(Map.of("message", "Expense deleted successfully!"));
         } catch (Exception e) {
             System.out.println("Error deleting expense: " + e.getMessage());
             e.printStackTrace();
-            if (transaction != null) {
-                transaction.rollback();
-            }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Error deleting expense."));
         }
     }
@@ -281,31 +315,6 @@ public class ExpenseController {
         return new ResponseEntity<>( "failed!" ,HttpStatus.OK);
     }
 
-    // Reject expense by ID
-//    @PutMapping("/{id}/reject")
-//    public String rejectExpense(@PathVariable Long id) {
-//        Transaction transaction = null;
-//        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-//            transaction = session.beginTransaction();
-//
-//            Expense expense = session.get(Expense.class, id);
-//            if (expense == null) {
-//                return "Expense not found.";  
-//            }
-//
-//            expense.setApprovalStatus(ExpenseStatus.REJECTED);
-//            session.update(expense);
-//
-//            transaction.commit();
-//            return "Expense rejected successfully!";
-//        } catch (Exception e) {
-//            if (transaction != null)
-//                transaction.rollback();
-//            e.printStackTrace();
-//            return "Error rejecting expense.";
-//        }
-//    }
-
     ///////////////////////////////////
 
     @GetMapping("/export/{format}")
@@ -313,9 +322,12 @@ public class ExpenseController {
         try {
             // Get current user
             String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-            
+            com.expense.management.model.User user = userRepository.findByEmail(userEmail).orElse(null);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found".getBytes());
+            }
             // Get user's expenses
-            List<Expense> userExpenses = expenseService.getAll();
+            List<Expense> userExpenses = expenseService.getAllByUser(user);
             
             if (format.equalsIgnoreCase("pdf")) {
                 byte[] pdfBytes = generatePdfReport(userExpenses);
@@ -324,12 +336,11 @@ public class ExpenseController {
                         .contentType(MediaType.APPLICATION_PDF)
                         .body(pdfBytes);
             } else if (format.equalsIgnoreCase("xlsx")) {
-                // For now, return a simple text file as placeholder
-                String csvContent = generateCsvReport(userExpenses);
+                byte[] excelBytes = generateExcelReport(userExpenses);
                 return ResponseEntity.ok()
-                        .header("Content-Disposition", "attachment; filename=expenses_report.csv")
-                        .contentType(MediaType.TEXT_PLAIN)
-                        .body(csvContent.getBytes());
+                        .header("Content-Disposition", "attachment; filename=expenses_report.xlsx")
+                        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                        .body(excelBytes);
             } else {
                 return ResponseEntity.badRequest().body("Unsupported format".getBytes());
             }
@@ -413,170 +424,325 @@ public class ExpenseController {
         return csv.toString();
     }
 
+    private byte[] generateExcelReport(List<Expense> expenses) throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Expenses");
+            int rowIdx = 0;
+            // Header
+            Row header = sheet.createRow(rowIdx++);
+            String[] columns = {"Date", "Category", "Description", "Amount", "Status"};
+            for (int i = 0; i < columns.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(columns[i]);
+            }
+            // Data
+            for (Expense expense : expenses) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(expense.getDate() != null ? expense.getDate().toString() : "");
+                row.createCell(1).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
+                row.createCell(2).setCellValue(expense.getDescription() != null ? expense.getDescription() : "");
+                row.createCell(3).setCellValue(expense.getAmount());
+                row.createCell(4).setCellValue(expense.getApprovalStatus() != null ? expense.getApprovalStatus().toString() : "");
+            }
+            // Autosize columns
+            for (int i = 0; i < columns.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            // Write to byte array
+            try (java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+                workbook.write(bos);
+                return bos.toByteArray();
+            }
+        }
+    }
+
+    @PutMapping("/{expenseId}")
+    public ResponseEntity<?> updateExpense(@PathVariable Long expenseId, @RequestBody Map<String, Object> updates) {
+        try {
+            String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            Expense expense = expenseRepository.findById(expenseId).orElse(null);
+            if (expense == null) {
+                Map<String, String> response = new HashMap<>();
+                response.put("message", "Expense not found.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            if (expense.getUser() == null || !expense.getUser().getEmail().equals(userEmail)) {
+                Map<String, String> response = new HashMap<>();
+                response.put("message", "You are not allowed to edit this expense.");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            // Prepare updated values, fallback to current if not provided
+            double amount = updates.containsKey("amount") && updates.get("amount") != null ? Double.parseDouble(updates.get("amount").toString()) : expense.getAmount();
+            String category = updates.containsKey("category") && updates.get("category") != null ? updates.get("category").toString() : expense.getCategory();
+            String description = updates.containsKey("description") && updates.get("description") != null ? updates.get("description").toString() : expense.getDescription();
+            java.time.LocalDate date = updates.containsKey("date") && updates.get("date") != null ? java.time.LocalDate.parse(updates.get("date").toString()) : expense.getDate();
+            String comments = updates.containsKey("comments") && updates.get("comments") != null ? updates.get("comments").toString() : expense.getComments();
+            String priority = updates.containsKey("priority") && updates.get("priority") != null ? updates.get("priority").toString() : expense.getPriority();
+
+            // Set approval status based on amount after any edit
+            double AUTO_APPROVAL_THRESHOLD = 100.0;
+            if (amount < AUTO_APPROVAL_THRESHOLD) {
+                expense.setApprovalStatus(ExpenseStatus.APPROVED);
+            } else {
+                expense.setApprovalStatus(ExpenseStatus.PENDING);
+            }
+
+            // Update other fields
+            expense.setAmount(amount);
+            expense.setCategory(category);
+            expense.setDescription(description);
+            expense.setDate(date);
+            expense.setComments(comments);
+            expense.setPriority(priority);
+            expenseRepository.save(expense);
+            return ResponseEntity.ok(expense);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Error updating expense.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    @GetMapping("/export/yearly-trend/{year}")
+    public ResponseEntity<byte[]> exportYearlyTrendReport(@PathVariable int year) {
+        try {
+            // Get current user
+            String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            com.expense.management.model.User user = userRepository.findByEmail(userEmail).orElse(null);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found".getBytes());
+            }
+            // Get user's expenses for the year
+            List<Expense> userExpenses = expenseService.getAllByUser(user);
+            // Filter for the given year
+            List<Expense> yearlyExpenses = userExpenses.stream()
+                .filter(e -> e.getDate() != null && e.getDate().getYear() == year)
+                .toList();
+
+            // Aggregate by month
+            Map<Integer, Double> monthTotals = new HashMap<>();
+            for (int m = 1; m <= 12; m++) monthTotals.put(m, 0.0);
+            for (Expense e : yearlyExpenses) {
+                int month = e.getDate().getMonthValue();
+                monthTotals.put(month, monthTotals.get(month) + e.getAmount());
+            }
+
+            // Generate PDF
+            byte[] pdfBytes = generateYearlyTrendPdf(year, monthTotals);
+
+            return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=yearly_trend_report_" + year + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error generating yearly trend report".getBytes());
+        }
+    }
+
+    private byte[] generateYearlyTrendPdf(int year, Map<Integer, Double> monthTotals) throws com.itextpdf.text.DocumentException {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        com.itextpdf.text.Document document = new com.itextpdf.text.Document();
+        com.itextpdf.text.pdf.PdfWriter.getInstance(document, baos);
+
+        document.open();
+
+        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
+        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Yearly Expense Trend Report - " + year, titleFont);
+        title.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+        document.add(title);
+        document.add(new com.itextpdf.text.Paragraph(" "));
+
+        com.itextpdf.text.pdf.PdfPTable table = new com.itextpdf.text.pdf.PdfPTable(2);
+        table.setWidthPercentage(60);
+        table.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+
+        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
+        com.itextpdf.text.pdf.PdfPCell monthHeader = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("Month", headerFont));
+        com.itextpdf.text.pdf.PdfPCell totalHeader = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("Total Spent", headerFont));
+        monthHeader.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+        totalHeader.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+        table.addCell(monthHeader);
+        table.addCell(totalHeader);
+
+        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA, 11);
+        double yearlyTotal = 0;
+        for (int m = 1; m <= 12; m++) {
+            String monthName = java.time.Month.of(m).name();
+            double total = monthTotals.get(m);
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(monthName, dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("$" + String.format("%.2f", total), dataFont)));
+            yearlyTotal += total;
+        }
+        document.add(table);
+        document.add(new com.itextpdf.text.Paragraph(" "));
+
+        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
+        com.itextpdf.text.Paragraph total = new com.itextpdf.text.Paragraph("Yearly Total: $" + String.format("%.2f", yearlyTotal), totalFont);
+        total.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+        document.add(total);
+
+        document.close();
+        return baos.toByteArray();
+    }
+
+    @GetMapping("/export/monthly-detailed/{year}/{month}")
+    public ResponseEntity<byte[]> exportMonthlyDetailedReport(@PathVariable int year, @PathVariable int month) {
+        try {
+            String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            com.expense.management.model.User user = userRepository.findByEmail(userEmail).orElse(null);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found".getBytes());
+            }
+            // Get user's expenses for the month
+            List<Expense> userExpenses = expenseService.getAllByUser(user);
+            List<Expense> monthlyExpenses = userExpenses.stream()
+                .filter(e -> e.getDate() != null && e.getDate().getYear() == year && e.getDate().getMonthValue() == month)
+                .toList();
+
+            // Generate PDF
+            byte[] pdfBytes = generateMonthlyDetailedPdf(year, month, monthlyExpenses);
+
+            return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=monthly_detailed_report_" + year + "_" + month + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error generating monthly detailed report".getBytes());
+        }
+    }
+
+    private byte[] generateMonthlyDetailedPdf(int year, int month, List<Expense> expenses) throws com.itextpdf.text.DocumentException {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        com.itextpdf.text.Document document = new com.itextpdf.text.Document();
+        com.itextpdf.text.pdf.PdfWriter.getInstance(document, baos);
+
+        document.open();
+
+        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
+        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Detailed Monthly Expense Report - " + year + "-" + String.format("%02d", month), titleFont);
+        title.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+        document.add(title);
+        document.add(new com.itextpdf.text.Paragraph(" "));
+
+        com.itextpdf.text.pdf.PdfPTable table = new com.itextpdf.text.pdf.PdfPTable(5);
+        table.setWidthPercentage(100);
+
+        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
+        String[] headers = {"Date", "Category", "Description", "Amount", "Status"};
+        for (String header : headers) {
+            com.itextpdf.text.pdf.PdfPCell cell = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(header, headerFont));
+            cell.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+            cell.setPadding(5);
+            table.addCell(cell);
+        }
+
+        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA, 10);
+        double totalAmount = 0;
+        for (Expense expense : expenses) {
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getDate().toString(), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getCategory(), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getDescription(), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("$" + String.format("%.2f", expense.getAmount()), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getApprovalStatus().toString(), dataFont)));
+            totalAmount += expense.getAmount();
+        }
+
+        document.add(table);
+        document.add(new com.itextpdf.text.Paragraph(" "));
+
+        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
+        com.itextpdf.text.Paragraph total = new com.itextpdf.text.Paragraph("Monthly Total: $" + String.format("%.2f", totalAmount), totalFont);
+        total.setAlignment(com.itextpdf.text.Element.ALIGN_RIGHT);
+        document.add(total);
+
+        document.close();
+        return baos.toByteArray();
+    }
+
+    @GetMapping("/export/category-spending/{year}")
+    public ResponseEntity<byte[]> exportCategorySpendingReport(@PathVariable int year) {
+        try {
+            String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            com.expense.management.model.User user = userRepository.findByEmail(userEmail).orElse(null);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found".getBytes());
+            }
+            // Get user's expenses for the year
+            List<Expense> userExpenses = expenseService.getAllByUser(user);
+            List<Expense> yearlyExpenses = userExpenses.stream()
+                .filter(e -> e.getDate() != null && e.getDate().getYear() == year)
+                .toList();
+
+            // Aggregate by category
+            Map<String, Double> categoryTotals = new HashMap<>();
+            double total = 0;
+            for (Expense e : yearlyExpenses) {
+                categoryTotals.put(e.getCategory(), categoryTotals.getOrDefault(e.getCategory(), 0.0) + e.getAmount());
+                total += e.getAmount();
+            }
+
+            // Generate PDF
+            byte[] pdfBytes = generateCategorySpendingPdf(year, categoryTotals, total);
+
+            return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=category_spending_report_" + year + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error generating category spending report".getBytes());
+        }
+    }
+
+    private byte[] generateCategorySpendingPdf(int year, Map<String, Double> categoryTotals, double total) throws com.itextpdf.text.DocumentException {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        com.itextpdf.text.Document document = new com.itextpdf.text.Document();
+        com.itextpdf.text.pdf.PdfWriter.getInstance(document, baos);
+
+        document.open();
+
+        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
+        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Category Spending Report - " + year, titleFont);
+        title.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+        document.add(title);
+        document.add(new com.itextpdf.text.Paragraph(" "));
+
+        com.itextpdf.text.pdf.PdfPTable table = new com.itextpdf.text.pdf.PdfPTable(3);
+        table.setWidthPercentage(80);
+        table.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+
+        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
+        String[] headers = {"Category", "Total Spent", "Percent"};
+        for (String header : headers) {
+            com.itextpdf.text.pdf.PdfPCell cell = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(header, headerFont));
+            cell.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+            cell.setPadding(5);
+            table.addCell(cell);
+        }
+
+        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA, 11);
+        for (Map.Entry<String, Double> entry : categoryTotals.entrySet()) {
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(entry.getKey(), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("$" + String.format("%.2f", entry.getValue()), dataFont)));
+            double percent = total > 0 ? (entry.getValue() / total) * 100 : 0;
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(String.format("%.2f%%", percent), dataFont)));
+        }
+        document.add(table);
+        document.add(new com.itextpdf.text.Paragraph(" "));
+
+        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
+        com.itextpdf.text.Paragraph totalPara = new com.itextpdf.text.Paragraph("Yearly Total: $" + String.format("%.2f", total), totalFont);
+        totalPara.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+        document.add(totalPara);
+
+        document.close();
+        return baos.toByteArray();
+    }
+
 }
-
-// package com.expense.management.controller;
-
-// import com.expense.management.model.Expense;
-// import com.expense.management.model.ExpenseStatus;
-// import com.expense.management.util.HibernateUtil;
-// import org.hibernate.Session;
-// import org.hibernate.Transaction;
-// import org.hibernate.query.Query;
-// import org.springframework.web.bind.annotation.*;
-// import org.springframework.web.multipart.MultipartFile;
-
-// import java.io.IOException;
-// import java.time.LocalDate;
-// import java.util.HashMap;
-// import java.util.List;
-// import java.util.Map;
-
-// @CrossOrigin(origins = "http://localhost:3000")
-// @RestController
-// @RequestMapping("/api/expenses")
-// public class ExpenseController {
-
-// @PostMapping
-// public String addExpense(@RequestParam("amount") double amount,
-// @RequestParam("category") String category,
-// @RequestParam("description") String description,
-// @RequestParam("date") String date,
-// @RequestParam(value = "attachment", required = false) MultipartFile
-// attachment) {
-// Transaction transaction = null;
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// // Create new expense and set details directly from request parameters
-// Expense expense = new Expense();
-// expense.setAmount(amount);
-// expense.setCategory(category);
-// expense.setDescription(description);
-// expense.setDate(LocalDate.parse(date)); // Date format "YYYY-MM-DD"
-// expense.setApprovalStatus(ExpenseStatus.PENDING); // Default status
-
-// // Handle file attachment (optional)
-// if (attachment != null && !attachment.isEmpty()) {
-// expense.setAttachment(attachment.getBytes());
-// expense.setAttachmentType(attachment.getContentType());
-// }
-
-// // Start transaction and save expense
-// transaction = session.beginTransaction();
-// session.save(expense);
-// transaction.commit();
-
-// return "Expense added successfully!";
-// } catch (Exception e) {
-// if (transaction != null) {
-// transaction.rollback();
-// }
-// e.printStackTrace();
-// return "Error adding expense.";
-// }
-// }
-
-// // Endpoint to approve or reject an expense
-// @PostMapping("/approve/{expenseId}")
-// public String approveExpense(@PathVariable Long expenseId, @RequestParam
-// ExpenseStatus status) {
-// Transaction transaction = null;
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// transaction = session.beginTransaction();
-
-// Expense expense = session.get(Expense.class, expenseId);
-// if (expense == null) {
-// return "Expense not found.";
-// }
-
-// expense.setApprovalStatus(status);
-// session.update(expense);
-// transaction.commit();
-
-// return "Expense " + status + " successfully!";
-// } catch (Exception e) {
-// if (transaction != null) {
-// transaction.rollback();
-// }
-// e.printStackTrace();
-// return "Error updating expense status.";
-// }
-// }
-
-// // Get all expenses
-// @GetMapping
-// public List<Expense> getAllExpenses() {
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// return session.createQuery("from Expense", Expense.class).list();
-// }
-// }
-
-// // Get total expenses
-// @GetMapping("/total")
-// public double getTotalExpenses() {
-// double totalExpenses = 0.0;
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// Query<Double> query = session.createQuery("select sum(e.amount) from Expense
-// e", Double.class);
-// totalExpenses = query.uniqueResult();
-// }
-// return totalExpenses;
-// }
-
-// // Get total expenses by category
-// @GetMapping("/category/{category}")
-// public double getTotalExpensesByCategory(@PathVariable String category) {
-// double totalExpenses = 0.0;
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// Query<Double> query = session.createQuery("select sum(e.amount) from Expense
-// e where e.category = :category", Double.class);
-// query.setParameter("category", category);
-// Double result = query.uniqueResult();
-// if (result != null) {
-// totalExpenses = result.doubleValue();
-// }
-// }
-// return totalExpenses;
-// }
-
-// // Get expenses for a specific month and year
-// @GetMapping("/month/{year}/{month}")
-// public List<Expense> getExpensesByMonth(@PathVariable int year, @PathVariable
-// int month) {
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// Query<Expense> query = session.createQuery("FROM Expense WHERE YEAR(date) =
-// :year AND MONTH(date) = :month", Expense.class);
-// query.setParameter("year", year);
-// query.setParameter("month", month);
-// return query.list();
-// }
-// }
-
-// // Get expenses for a specific year
-// @GetMapping("/year/{year}")
-// public List<Expense> getExpensesByYear(@PathVariable int year) {
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// Query<Expense> query = session.createQuery("FROM Expense WHERE YEAR(date) =
-// :year", Expense.class);
-// query.setParameter("year", year);
-// return query.list();
-// }
-// }
-
-// // Get category-wise expense data
-// @GetMapping("/category-wise")
-// public Map<String, Double> getCategoryWiseExpenseData() {
-// try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-// Query<Object[]> query = session.createQuery("SELECT category, SUM(amount)
-// FROM Expense GROUP BY category", Object[].class);
-// List<Object[]> results = query.list();
-
-// Map<String, Double> categoryExpenseMap = new HashMap<>();
-// for (Object[] result : results) {
-// String category = (String) result[0];
-// Double totalExpense = (Double) result[1];
-// categoryExpenseMap.put(category, totalExpense);
-// }
-// return categoryExpenseMap;
-// }
-// }
-// }

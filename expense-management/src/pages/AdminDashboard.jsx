@@ -62,29 +62,26 @@ const AdminDashboard = () => {
       setLoading(true);
       setError(null);
       try {
+        const token = localStorage.getItem('token');
+        const authHeader = { headers: { Authorization: `Bearer ${token}` } };
         // Dashboard stats
-        const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`);
+        const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, authHeader);
         console.log('Dashboard data:', dashboardRes.data);
         setDashboardData(dashboardRes.data);
         // Expenses
-        const expensesRes = await axios.get(`${API_BASE}/api/expenses`);
+        const expensesRes = await axios.get(`${API_BASE}/api/expenses`, authHeader);
         console.log('Expenses data:', expensesRes.data);
         setExpenses(expensesRes.data);
         // Audit logs
-        const auditRes = await axios.get(`${API_BASE}/api/audit/logs`);
+        const auditRes = await axios.get(`${API_BASE}/api/audit/logs`, authHeader);
         console.log('Audit logs data:', auditRes.data);
         setAuditLogs(auditRes.data);
         // Budget
-        const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`);
+        const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, authHeader);
         console.log('Budget data:', budgetRes.data);
         setBudget(budgetRes.data.budget);
         // Users (fetch from backend)
-        const token = localStorage.getItem('token');
-        const usersRes = await axios.get(`${API_BASE}/api/auth/users`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        const usersRes = await axios.get(`${API_BASE}/api/auth/users`, authHeader);
         console.log('Users data:', usersRes.data);
         setUsers(usersRes.data);
       } catch (err) {
@@ -1028,17 +1025,42 @@ const AdminDashboard = () => {
                     {selectedExpense.status}
                   </span>
                 </div>
-                {selectedExpense.receipt && (
+                {selectedExpense.receiptUrl && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Receipt</label>
-                    <a 
-                      href={selectedExpense.receipt} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      View Receipt
-                    </a>
+                    <div className="mt-2">
+                      {selectedExpense.receiptUrl.toLowerCase().includes('.pdf') ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-red-100 flex items-center justify-center rounded">
+                            <span className="text-red-600 text-xs font-bold">PDF</span>
+                          </div>
+                          <a 
+                            href={selectedExpense.receiptUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 text-sm underline"
+                          >
+                            View Receipt PDF
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <img 
+                            src={selectedExpense.receiptUrl} 
+                            alt="Receipt" 
+                            className="max-w-full h-auto max-h-64 rounded border"
+                          />
+                          <a 
+                            href={selectedExpense.receiptUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 text-sm underline"
+                          >
+                            View Full Size
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

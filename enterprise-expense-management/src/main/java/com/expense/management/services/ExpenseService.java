@@ -60,4 +60,8 @@ public class ExpenseService  {
 			}
 			return false;
 		}
+
+		public List<Expense> getAllByUser(com.expense.management.model.User user) {
+			return expenseRepository.findByUser(user);
+		}
 }

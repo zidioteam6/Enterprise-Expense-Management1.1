@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import com.expense.management.enums.ApprovalLevel;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -63,8 +64,12 @@ public class Expense {
 	@Column(name = "attachment_type")
 	private String attachmentType;
 
+	@Column(name = "receipt_url")
+	private String receiptUrl;
+
 	@ManyToOne
 	@JoinColumn(name = "user_id")
+	@JsonIgnore
 	User user;
 	
 	
