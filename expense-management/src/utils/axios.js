@@ -61,14 +61,19 @@ api.interceptors.response.use(
       console.log('DELETE request failed, not redirecting automatically');
       return Promise.reject(error);
     }
-    
+
+    // Only redirect to login on 401 for GET requests
     if (error.response?.status === 401) {
-      // Clear auth data and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      const method = error.config?.method?.toLowerCase();
+      if (method === 'get') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      } else {
+        // For PUT/POST/PATCH, just reject the error and let the component handle it
+        return Promise.reject(error);
+      }
     } else if (error.response?.status === 403) {
-      // Handle forbidden access
       window.location.href = '/dashboard';
     }
     

@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Data
@@ -28,6 +29,7 @@ public class User {
     // private Role role = Role.MANAGER; // ✅ Add this field
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "user")
+    @JsonIgnore
     List<Expense> expenses;
 
     // Constructors

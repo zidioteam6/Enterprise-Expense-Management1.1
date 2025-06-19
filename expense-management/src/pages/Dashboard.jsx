@@ -32,6 +32,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import AddExpenseForm from './AddExpenseForm';
+import ReceiptDisplay from '../components/ReceiptDisplay';
 import { useNotification } from '../context/NotificationContext';
 
 const API_BASE = 'http://localhost:8080';
@@ -48,23 +49,20 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [expenseModalMode, setExpenseModalMode] = useState('view');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { notifications = [], removeNotification, addNotification } = useNotification();
+  const { notifications, addNotification, removeNotification, clearNotifications } = useNotification();
 
   // Define a mapping for categories with emojis
   const categoryEmojis = {
-    FOOD: { name: 'Food', emoji: '🍔' },
-    TRANSPORTATION: { name: 'Transportation', emoji: '🚗' },
-    HOUSING: { name: 'Housing', emoji: '🏠' },
+    TRAVEL: { name: 'Travel', emoji: '✈️' },
+    FOOD: { name: 'Food', emoji: '🍽️' },
+    OFFICE_SUPPLIES: { name: 'Office Supplies', emoji: '📦' },
     UTILITIES: { name: 'Utilities', emoji: '💡' },
-    ENTERTAINMENT: { name: 'Entertainment', emoji: '🎬' },
-    HEALTH: { name: 'Health', emoji: '🏥' },
-    EDUCATION: { name: 'Education', emoji: '📚' },
-    SHOPPING: { name: 'Shopping', emoji: '🛍️' },
-    SALARY: { name: 'Salary', emoji: '💰' },
-    OTHER: { name: 'Other', emoji: '🤷‍♀️' },
+    OTHER: { name: 'Other', emoji: '📝' },
   };
 
   useEffect(() => {
@@ -72,8 +70,8 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch expenses
-        const expensesRes = await api.get('/expenses');
+        // Fetch current user's expenses only
+        const expensesRes = await api.get('/employee/expenses');
         console.log('Expenses data:', expensesRes.data);
         // Ensure expenses is always an array
         const expensesData = Array.isArray(expensesRes.data) ? expensesRes.data : [];
@@ -89,8 +87,8 @@ const Dashboard = () => {
         setCategories(transformedCategories);
         console.log('Transformed categories:', transformedCategories);
 
-        // Fetch dashboard stats
-        const dashboardRes = await api.get('/dashboard');
+        // Fetch current user's dashboard stats only
+        const dashboardRes = await api.get('/employee/dashboard');
         console.log('Dashboard data:', dashboardRes.data);
         setDashboardData(dashboardRes.data);
       } catch (err) {
@@ -127,6 +125,16 @@ const Dashboard = () => {
   const safeArray = (val) => Array.isArray(val) ? val : [];
   const safeObject = (val) => (typeof val === 'object' && val !== null ? val : {});
 
+  // Helper function to refresh dashboard data
+  const refreshDashboardData = async () => {
+    try {
+      const dashboardRes = await api.get('/employee/dashboard');
+      setDashboardData(dashboardRes.data);
+    } catch (err) {
+      console.error('Failed to refresh dashboard data:', err);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'APPROVED': return 'text-green-600 bg-green-100';
@@ -157,97 +165,132 @@ const Dashboard = () => {
       return [updatedExpense, ...currentExpenses];
     });
     
-    // Show appropriate notification
-    if (isUnderThreshold) {
-      addNotification('Expense has been auto-approved as it is under the threshold', 'success');
-    } else {
-      addNotification('Expense has been added and is waiting for approval', 'info');
-    }
+    // Refresh dashboard data to update analytics
+    refreshDashboardData();
 
     // Close the modal
     setShowExpenseModal(false);
   };
 
-  const renderOverview = () => (
-    <div className="space-y-6">
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.totalExpenses)}</p>
+  const renderOverview = () => {
+    // Transform monthlyExpenses object into an array for the chart
+    const transformedMonthlyExpenses = Object.entries(dashboard.monthlyExpenses || {}).map(([month, amount]) => ({
+      month,
+      amount: safeNumber(amount)
+    }));
+    // Transform expensesByCategory object into an array for the Pie chart
+    const transformedExpensesByCategory = Object.entries(dashboard.expensesByCategory || {}).map(([categoryName, amount]) => ({
+      name: getCategoryDisplay(categoryName),
+      value: safeNumber(amount)
+    }));
+    return (
+      <div className="space-y-6">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.totalExpenses)}</p>
+              </div>
+              <Receipt className="h-8 w-8 text-blue-500" />
             </div>
-            <Receipt className="h-8 w-8 text-blue-500" />
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Approved</p>
+                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.approvedExpenses)}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending</p>
+                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.pendingExpenses)}</p>
+              </div>
+              <Clock className="h-8 w-8 text-yellow-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Rejected</p>
+                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.rejectedExpenses)}</p>
+              </div>
+              <XCircle className="h-8 w-8 text-red-500" />
+            </div>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.approvedExpenses)}</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.pendingExpenses)}</p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Rejected</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.rejectedExpenses)}</p>
-            </div>
-            <XCircle className="h-8 w-8 text-red-500" />
-          </div>
-        </div>
-      </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={safeArray(dashboard.monthlyExpenses)}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-              <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={transformedMonthlyExpenses}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+                <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-4">Expenses by Category</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <RechartsPieChart>
+                <Pie
+                  data={transformedExpensesByCategory}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                  label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
+                >
+                  {transformedExpensesByCategory.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
+
+        {/* Recent Activity Feed */}
         <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Expenses by Category</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <RechartsPieChart>
-              <Pie
-                data={safeArray(dashboard.expensesByCategory)}
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-                label={({ name, value }) => `${name}: ${safeToLocaleString(value)}%`}
-              >
-                {safeArray(dashboard.expensesByCategory).map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => [`${safeToLocaleString(value)}%`, 'Percentage']} />
-            </RechartsPieChart>
-          </ResponsiveContainer>
+          <h3 className="text-lg font-semibold mb-4">Recent Activity Feed</h3>
+          <ul className="divide-y divide-gray-200">
+            {(dashboard.recentExpenses && dashboard.recentExpenses.length > 0
+              ? dashboard.recentExpenses.slice(0, 7)
+              : (Array.isArray(expenses) ? expenses.slice(0, 7) : [])
+            ).map((expense) => (
+              <li key={expense.id} className="py-3 flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-900">{expense.description}</div>
+                  <div className="text-sm text-gray-500">{getCategoryDisplay(expense.category)} &middot; {new Date(expense.date).toLocaleDateString()}</div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-semibold text-gray-700">${safeToLocaleString(expense.amount)}</span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus || expense.status)}`}>
+                    {expense.approvalStatus || expense.status}
+                  </span>
+                </div>
+              </li>
+            ))}
+            {((dashboard.recentExpenses && dashboard.recentExpenses.length === 0) || (!dashboard.recentExpenses && (!expenses || expenses.length === 0))) && (
+              <li className="py-3 text-gray-500">No recent activity found.</li>
+            )}
+          </ul>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderExpenses = () => (
     <div className="space-y-6">
@@ -284,25 +327,18 @@ const Dashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-<<<<<<< HEAD
-              {safeArray(expenses)
-                .filter(expense => {
-                  const description = expense?.description || '';
-                  const category = expense?.category || '';
-                  return description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         category.toLowerCase().includes(searchTerm.toLowerCase());
-                })
-=======
-              {(Array.isArray(expenses) ? expenses : [])
+              {(Array.isArray(expenses) ?
+                expenses.slice().sort((a, b) => new Date(b.date) - new Date(a.date)) : [])
                 .filter(expense => 
                   expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                   expense.category.toLowerCase().includes(searchTerm.toLowerCase())
                 )
->>>>>>> a77d46d3bb4094629e6224485eba642b84362d00
+
                 .map((expense) => (
                 <tr key={expense.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>
@@ -314,6 +350,9 @@ const Dashboard = () => {
                       {expense.approvalStatus}
                     </span>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <ReceiptDisplay receiptUrl={expense.receiptUrl} />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <button 
@@ -322,114 +361,54 @@ const Dashboard = () => {
                       >
                         <Eye className="h-4 w-4" />
                       </button>
+                      <button 
+                        onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('edit'); }}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
                       {expense.approvalStatus === 'PENDING' && (
-                        <>
-                          <button 
-                            onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('edit'); }}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={async () => {
-                              if (window.confirm('Are you sure you want to delete this expense?')) {
-                                try {
-                                  console.log('Starting delete process for expense:', expense.id);
-                                  console.log('Full expense object:', expense);
-                                  
-                                  // Log the exact URL being constructed
-                                  const deleteUrl = `/expenses/${expense.id}`;
-                                  console.log('Delete URL:', deleteUrl);
-                                  console.log('Full URL with base:', `http://localhost:8080/api${deleteUrl}`);
-                                  
-                                  // Try with the api instance first
-                                  const response = await api.delete(deleteUrl);
-                                  console.log('Delete response:', response);
-                                  
-                                  // Update local state
-                                  setExpenses(prev => {
-                                    const currentExpenses = Array.isArray(prev) ? prev : [];
-                                    return currentExpenses.filter(e => e.id !== expense.id);
-                                  });
-                                  
-                                  // Update dashboard data
-                                  setDashboardData(prev => ({
-                                    ...prev,
-                                    totalExpenses: safeNumber(prev.totalExpenses) - expense.amount,
-                                    recentExpenses: prev.recentExpenses.filter(e => e.id !== expense.id)
-                                  }));
-                                  
-                                  removeNotification(expense.id);
-                                  addNotification('Expense deleted successfully!', 'success');
-                                } catch (err) {
-                                  console.error('Delete error details:', err);
-                                  console.error('Error response:', err.response);
-                                  console.error('Error status:', err.response?.status);
-                                  console.error('Error data:', err.response?.data);
-                                  console.error('Error config:', err.config);
-                                  
-                                  // If the first attempt fails, try with the full URL
-                                  if (err.message === 'Network Error') {
-                                    console.log('Network error detected, trying with full URL...');
-                                    try {
-                                      const token = localStorage.getItem('token');
-                                      const fullUrl = `http://localhost:8080/api/expenses/${expense.id}`;
-                                      console.log('Trying full URL:', fullUrl);
-                                      
-                                      const response = await fetch(fullUrl, {
-                                        method: 'DELETE',
-                                        headers: {
-                                          'Authorization': `Bearer ${token}`,
-                                          'Content-Type': 'application/json'
-                                        }
-                                      });
-                                      
-                                      if (response.ok) {
-                                        console.log('Delete successful with fetch');
-                                        // Update local state
-                                        setExpenses(prev => {
-                                          const currentExpenses = Array.isArray(prev) ? prev : [];
-                                          return currentExpenses.filter(e => e.id !== expense.id);
-                                        });
-                                        
-                                        // Update dashboard data
-                                        setDashboardData(prev => ({
-                                          ...prev,
-                                          totalExpenses: safeNumber(prev.totalExpenses) - expense.amount,
-                                          recentExpenses: prev.recentExpenses.filter(e => e.id !== expense.id)
-                                        }));
-                                        
-                                        removeNotification(expense.id);
-                                        addNotification('Expense deleted successfully!', 'success');
-                                        return;
-                                      } else {
-                                        const errorText = await response.text();
-                                        console.error('Fetch failed with status:', response.status, errorText);
-                                        throw new Error(`HTTP ${response.status}: ${errorText}`);
-                                      }
-                                    } catch (fetchErr) {
-                                      console.error('Fetch attempt also failed:', fetchErr);
-                                      setError(`Failed to delete expense: ${fetchErr.message}`);
-                                      addNotification(`Failed to delete expense: ${fetchErr.message}`, 'error');
-                                      return;
-                                    }
-                                  }
-                                  
-                                  const errorMessage = err.response?.data?.message || 
-                                                     err.response?.data || 
-                                                     err.message || 
-                                                     'Failed to delete expense';
-                                  
-                                  setError(errorMessage);
-                                  addNotification(`Failed to delete expense: ${errorMessage}`, 'error');
+                        <button 
+                          onClick={async () => {
+                            if (window.confirm('Are you sure you want to delete this expense?')) {
+                              try {
+                                console.log('Starting delete process for expense:', expense.id);
+                                // Use the api instance with proper error handling
+                                const response = await api.delete(`/expenses/${expense.id}`);
+                                console.log('Delete response:', response);
+                                // Update local state
+                                setExpenses(prev => {
+                                  const currentExpenses = Array.isArray(prev) ? prev : [];
+                                  return currentExpenses.filter(e => e.id !== expense.id);
+                                });
+                                // Refresh dashboard data to update analytics
+                                refreshDashboardData();
+                                addNotification('Expense deleted successfully!', 'success');
+                              } catch (err) {
+                                console.error('Delete error:', err);
+                                console.error('Error response:', err.response);
+                                console.error('Error status:', err.response?.status);
+                                console.error('Error data:', err.response?.data);
+                                let errorMessage = 'Failed to delete expense';
+                                if (err.response?.status === 401) {
+                                  errorMessage = 'Authentication failed. Please log in again.';
+                                } else if (err.response?.status === 403) {
+                                  errorMessage = 'You are not authorized to delete this expense.';
+                                } else if (err.response?.status === 404) {
+                                  errorMessage = 'Expense not found.';
+                                } else if (err.response?.data?.message) {
+                                  errorMessage = err.response.data.message;
+                                } else if (err.message) {
+                                  errorMessage = err.message;
                                 }
+                                addNotification(errorMessage, 'error');
                               }
-                            }}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </>
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       )}
                     </div>
                   </td>
@@ -518,9 +497,60 @@ const Dashboard = () => {
         {/* Report Generation (Example buttons) */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Generate Custom Reports</h3>
+          {/* Month/year selector for detailed monthly report */}
+          <div className="flex items-center gap-2 mb-2">
+            <label htmlFor="month-select" className="text-sm">Month:</label>
+            <select
+              id="month-select"
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="border rounded px-2 py-1"
+            >
+              {[...Array(12)].map((_, i) => (
+                <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('default', { month: 'long' })}</option>
+              ))}
+            </select>
+            <label htmlFor="year-select" className="text-sm">Year:</label>
+            <select
+              id="year-select"
+              value={selectedYear}
+              onChange={e => setSelectedYear(Number(e.target.value))}
+              className="border rounded px-2 py-1"
+            >
+              {[...Array(5)].map((_, i) => {
+                const year = new Date().getFullYear() - i;
+                return <option key={year} value={year}>{year}</option>;
+              })}
+            </select>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button
-              onClick={() => alert('Generating detailed monthly report...')}
+              onClick={async () => {
+                try {
+                  addNotification('Generating detailed monthly report...', 'info');
+                  const token = localStorage.getItem('token');
+                  const response = await api.get(`/expenses/export/monthly-detailed/${selectedYear}/${selectedMonth}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    responseType: 'blob',
+                  });
+                  if (!response.data || response.data.size === 0) {
+                    throw new Error('Empty response received from server');
+                  }
+                  const blob = new Blob([response.data], { type: 'application/pdf' });
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', `monthly_detailed_report_${selectedYear}_${selectedMonth}.pdf`);
+                  link.style.display = 'none';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  addNotification('Detailed monthly report downloaded!', 'success');
+                } catch (error) {
+                  addNotification('Failed to generate detailed monthly report', 'error');
+                }
+              }}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
             >
               <FileText className="h-6 w-6 text-blue-500 mb-2" />
@@ -528,7 +558,32 @@ const Dashboard = () => {
               <p className="text-sm text-gray-500">Comprehensive overview of monthly expenses</p>
             </button>
             <button
-              onClick={() => alert('Generating category spending report...')}
+              onClick={async () => {
+                try {
+                  addNotification('Generating category spending report...', 'info');
+                  const token = localStorage.getItem('token');
+                  const response = await api.get(`/expenses/export/category-spending/${selectedYear}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    responseType: 'blob',
+                  });
+                  if (!response.data || response.data.size === 0) {
+                    throw new Error('Empty response received from server');
+                  }
+                  const blob = new Blob([response.data], { type: 'application/pdf' });
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', `category_spending_report_${selectedYear}.pdf`);
+                  link.style.display = 'none';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  addNotification('Category spending report downloaded!', 'success');
+                } catch (error) {
+                  addNotification('Failed to generate category spending report', 'error');
+                }
+              }}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
             >
               <PieChart className="h-6 w-6 text-green-500 mb-2" />
@@ -536,7 +591,32 @@ const Dashboard = () => {
               <p className="text-sm text-gray-500">In-depth analysis by expense category</p>
             </button>
             <button
-              onClick={() => alert('Generating yearly trend report...')}
+              onClick={async () => {
+                try {
+                  addNotification('Generating yearly trend report...', 'info');
+                  const token = localStorage.getItem('token');
+                  const response = await api.get(`/expenses/export/yearly-trend/${selectedYear}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    responseType: 'blob',
+                  });
+                  if (!response.data || response.data.size === 0) {
+                    throw new Error('Empty response received from server');
+                  }
+                  const blob = new Blob([response.data], { type: 'application/pdf' });
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', `yearly_trend_report_${selectedYear}.pdf`);
+                  link.style.display = 'none';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  addNotification('Yearly trend report downloaded!', 'success');
+                } catch (error) {
+                  addNotification('Failed to generate yearly trend report', 'error');
+                }
+              }}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
             >
               <BarChart3 className="h-6 w-6 text-purple-500 mb-2" />
@@ -593,15 +673,11 @@ const Dashboard = () => {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
-      
-      setDashboardData(prev => ({
-        ...prev,
-        recentExpenses: prev.recentExpenses.map(e => 
-          e.id === updatedExpense.id ? response.data : e
-        )
-      }));
-      setExpenses(prev => prev.map(e => e.id === updatedExpense.id ? response.data : e));
-      
+      // Refresh dashboard data to update analytics
+      await refreshDashboardData();
+      // Update expenses list: replace the old expense with the updated one
+      const updated = response.data;
+      setExpenses(prev => prev.map(e => e.id === updated.id ? updated : e));
       setShowExpenseModal(false);
       setSelectedExpense(null);
     } catch (error) {
@@ -678,7 +754,179 @@ const Dashboard = () => {
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'my-expenses', label: 'My Expenses', icon: Receipt },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+    { id: 'settings', label: 'Settings', icon: User },
   ];
+
+  // Settings panel for employee dashboard
+  const renderSettings = () => (
+    <div className="space-y-8 max-w-2xl mx-auto py-8">
+      <h2 className="text-2xl font-bold flex items-center gap-2 mb-6">🔐 Account & Profile Settings</h2>
+      {/* Profile Card */}
+      <div className="flex items-center gap-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl shadow p-6 mb-4">
+        <div className="w-20 h-20 rounded-full bg-blue-200 flex items-center justify-center text-3xl font-bold text-white">
+          {user?.fullName?.[0] || 'U'}
+        </div>
+        <div className="flex-1">
+          <div className="text-xl font-semibold text-gray-900">{user?.fullName || 'N/A'}</div>
+          <div className="text-gray-600">{user?.email || 'N/A'}</div>
+          <div className="text-sm text-blue-700 mt-1">{user?.role ? user.role.replace('ROLE_', '') : 'Employee'}</div>
+          <div className="text-xs text-gray-400 mt-1">Joined: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Personal Information */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-6">
+          <h3 className="text-lg font-medium mb-2">Personal Information</h3>
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Name:</label>
+              <span className="text-gray-900">{user?.fullName || 'N/A'}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Email:</label>
+              <span className="text-gray-900">{user?.email || 'N/A'}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Phone:</label>
+              <span className="text-gray-900">(not set)</span>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Address:</label>
+              <span className="text-gray-900">(not set)</span>
+            </div>
+          </div>
+        </div>
+        {/* Authentication Settings */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-6">
+          <h3 className="text-lg font-medium mb-2">Authentication Settings</h3>
+          {/* Only show change password if user.provider is not set or is 'local' */}
+          {(!user?.provider || user?.provider === 'local') ? (
+            <ChangePasswordPanel user={user} />
+          ) : (
+            <div className="text-gray-500 text-sm">Password change is not available for social login accounts.</div>
+          )}
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold text-gray-700 mb-1">Security Tips</h4>
+            <ul className="list-disc list-inside text-xs text-gray-500 space-y-1">
+              <li>Use a strong, unique password for your account.</li>
+              <li>Never share your password with anyone.</li>
+              <li>Change your password regularly.</li>
+              <li>Enable two-factor authentication if available.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      {/* Divider */}
+      <div className="border-t my-8"></div>
+      {/* Account Actions */}
+      <div className="bg-white rounded-lg shadow p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-medium mb-2">Account Actions</h3>
+          <p className="text-sm text-gray-500">You can log out or request account deletion below.</p>
+        </div>
+        <div className="flex gap-3 mt-2 md:mt-0">
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+          >
+            Log Out
+          </button>
+          <button
+            className="bg-gray-300 text-gray-700 px-4 py-2 rounded cursor-not-allowed opacity-60"
+            disabled
+            title="Account deletion is not available yet."
+          >
+            Delete Account
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ChangePasswordPanel component
+  function ChangePasswordPanel({ user }) {
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [showForm, setShowForm] = useState(false);
+    const { addNotification } = useNotification();
+
+    const handleChangePassword = async (e) => {
+      e.preventDefault();
+      setError('');
+      setSuccess('');
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        setError('All fields are required.');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setError('New passwords do not match.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await api.post('/auth/change-password', {
+          currentPassword,
+          newPassword
+        });
+        setSuccess('Password changed successfully!');
+        addNotification('Password changed successfully!', 'success');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setShowForm(false);
+      } catch (err) {
+        setError(err?.response?.data?.message || 'Failed to change password.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div>
+        {!showForm ? (
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            onClick={() => setShowForm(true)}
+          >
+            Change Password
+          </button>
+        ) : (
+          <form onSubmit={handleChangePassword} className="space-y-3 max-w-md mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Current Password</label>
+              <input type="password" className="mt-1 w-full border rounded px-3 py-2" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">New Password</label>
+              <input type="password" className="mt-1 w-full border rounded px-3 py-2" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
+              <input type="password" className="mt-1 w-full border rounded px-3 py-2" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+            </div>
+            {error && <div className="text-red-600 text-sm">{error}</div>}
+            {success && <div className="text-green-600 text-sm">{success}</div>}
+            <div className="flex gap-2">
+              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" disabled={loading}>
+                {loading ? 'Changing...' : 'Change Password'}
+              </button>
+              <button
+                type="button"
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+                onClick={() => { setShowForm(false); setError(''); setSuccess(''); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -710,12 +958,18 @@ const Dashboard = () => {
                   <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-50">
                     <div className="p-4 border-b">
                       <h3 className="font-semibold">Notifications</h3>
+                      {notifications.length > 0 && (
+                        <button onClick={clearNotifications} className="ml-2 text-xs text-blue-600 hover:underline float-right">Clear All</button>
+                      )}
                     </div>
                     <div className="max-h-64 overflow-y-auto">
-                      {notifications.map((notification) => (
-                        <div key={notification.id} className="p-3 border-b hover:bg-gray-50">
-                          <p className="text-sm text-gray-900">{notification.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                      {[...notifications].slice().reverse().map((notification) => (
+                        <div key={notification.id} className="p-3 border-b hover:bg-gray-50 flex justify-between items-center">
+                          <div>
+                            <p className="text-sm text-gray-900">{notification.message}</p>
+                            <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                          </div>
+                          <button onClick={() => removeNotification(notification.id)} className="ml-2 text-gray-400 hover:text-red-500">&times;</button>
                         </div>
                       ))}
                       {notifications?.length === 0 && (
@@ -771,12 +1025,13 @@ const Dashboard = () => {
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'my-expenses' && renderExpenses()}
           {activeTab === 'analytics' && renderAnalytics()}
+          {activeTab === 'settings' && renderSettings()}
           {/* Removed settings tab for now as per user request */}
         </div>
       </div>
 
       {/* Expense Modal */}
-      {showExpenseModal && (
+      {showExpenseModal && !selectedExpense && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
             <div className="flex justify-between items-center mb-4">
@@ -788,7 +1043,7 @@ const Dashboard = () => {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <AddExpenseForm onExpenseAdded={handleExpenseAdded} />
+            <AddExpenseForm onExpenseAdded={handleExpenseAdded} onClose={() => setShowExpenseModal(false)} />
           </div>
         </div>
       )}
@@ -802,7 +1057,7 @@ const Dashboard = () => {
                  expenseModalMode === 'edit' ? 'Edit Expense' : 'Delete Expense'}
               </h2>
               <button
-                onClick={() => setSelectedExpense(null)}
+                onClick={() => { setSelectedExpense(null); setExpenseModalMode('view'); setShowExpenseModal(false); }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-6 w-6" />
@@ -825,9 +1080,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Status</p>
-                    <p className={`font-medium ${getStatusColor(selectedExpense.approvalStatus)}`}>
-                      {selectedExpense.approvalStatus}
-                    </p>
+                    <p className={`font-medium ${getStatusColor(selectedExpense.approvalStatus)}`}>{selectedExpense.approvalStatus}</p>
                   </div>
                 </div>
                 <div>
@@ -837,14 +1090,9 @@ const Dashboard = () => {
                 {selectedExpense.receiptUrl && (
                   <div>
                     <p className="text-sm text-gray-600">Receipt</p>
-                    <a 
-                      href={selectedExpense.receiptUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      View Receipt
-                    </a>
+                    <div className="mt-2">
+                      <ReceiptDisplay receiptUrl={selectedExpense.receiptUrl} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -853,6 +1101,7 @@ const Dashboard = () => {
               <AddExpenseForm 
                 expense={selectedExpense}
                 onExpenseAdded={handleExpenseSubmit}
+                onClose={() => { setSelectedExpense(null); setExpenseModalMode('view'); setShowExpenseModal(false); }}
               />
             )}
             {expenseModalMode === 'delete' && (
@@ -860,7 +1109,7 @@ const Dashboard = () => {
                 <p>Are you sure you want to delete this expense?</p>
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={() => setSelectedExpense(null)}
+                    onClick={() => { setSelectedExpense(null); setExpenseModalMode('view'); setShowExpenseModal(false); }}
                     className="px-4 py-2 text-gray-600 hover:text-gray-800"
                   >
                     Cancel

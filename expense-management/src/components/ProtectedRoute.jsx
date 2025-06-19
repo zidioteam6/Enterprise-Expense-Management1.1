@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
-const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }) => {
+const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false, financeOnly = false }) => {
   const { isAuthenticated, user, setUser, setIsAuthenticated, loading } = useAuth();
   const location = useLocation();
 
@@ -49,6 +49,12 @@ const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }) =>
     user?.roles === 'ROLE_MANAGER' ||
     (Array.isArray(user?.roles) && user.roles.includes('ROLE_MANAGER'));
 
+  // Check for finance role (handle all possible formats)
+  const isFinance =
+    user?.role === 'ROLE_FINANCE' ||
+    user?.roles === 'ROLE_FINANCE' ||
+    (Array.isArray(user?.roles) && user.roles.includes('ROLE_FINANCE'));
+
   // If adminOnly is true, check for admin role
   if (adminOnly && !isAdmin) {
     // Redirect non-admins to the normal dashboard
@@ -58,6 +64,12 @@ const ProtectedRoute = ({ children, adminOnly = false, managerOnly = false }) =>
   // If managerOnly is true, check for manager role
   if (managerOnly && !isManager) {
     // Redirect non-managers to the normal dashboard
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If financeOnly is true, check for finance role
+  if (financeOnly && !isFinance) {
+    // Redirect non-finance users to the normal dashboard
     return <Navigate to="/dashboard" replace />;
   }
 

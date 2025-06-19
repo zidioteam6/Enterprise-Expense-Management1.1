@@ -37,18 +37,25 @@ export const AuthProvider = ({ children }) => {
       if (tokenParam && userParam) {
         console.log('AuthContext useEffect: Found OAuth2 params in URL.');
         try {
-          const userData = JSON.parse(decodeURIComponent(userParam));
+          // Try to parse user as JSON (expected: URL-encoded JSON string)
+          let userData;
+          try {
+            userData = JSON.parse(decodeURIComponent(userParam));
+          } catch (parseErr) {
+            console.warn('AuthContext: Failed to parse userParam as JSON. Using raw string.', userParam);
+            userData = userParam; // fallback: store as string
+          }
           localStorage.setItem('token', tokenParam);
-          localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.setItem('user', typeof userData === 'string' ? userData : JSON.stringify(userData));
           token = tokenParam; // Update local variables
-          storedUser = JSON.stringify(userData); // Update local variables
+          storedUser = typeof userData === 'string' ? userData : JSON.stringify(userData); // Update local variables
           console.log('AuthContext useEffect: Processed OAuth2 URL params and saved to localStorage.');
           
           // Remove params from URL history to keep it clean
           window.history.replaceState({}, document.title, location.pathname);
 
         } catch (oauthError) {
-          console.error('AuthContext useEffect: Error processing OAuth2 URL parameters:', oauthError);
+          console.error('AuthContext useEffect: Error processing OAuth2 URL parameters:', oauthError, userParam);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           token = null;
@@ -59,13 +66,19 @@ export const AuthProvider = ({ children }) => {
       // Now check localStorage (will include newly set OAuth2 data if present)
       if (token && storedUser) {
         try {
-          const userData = JSON.parse(storedUser);
+          // Try to parse user if it's a JSON string, else use as is
+          let userData;
+          try {
+            userData = JSON.parse(storedUser);
+          } catch (e) {
+            userData = storedUser;
+          }
           setUser(userData);
           setIsAuthenticated(true);
           api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           console.log('AuthContext useEffect: Authenticated from localStorage or URL params.');
         } catch (error) {
-          console.error('AuthContext useEffect: Error parsing stored user/token:', error);
+          console.error('AuthContext useEffect: Error parsing stored user/token:', error, storedUser);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           setIsAuthenticated(false);
