@@ -338,6 +338,7 @@ const Dashboard = () => {
                   expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                   expense.category.toLowerCase().includes(searchTerm.toLowerCase())
                 )
+
                 .map((expense) => (
                 <tr key={expense.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>

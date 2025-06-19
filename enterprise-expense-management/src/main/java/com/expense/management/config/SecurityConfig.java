@@ -2,7 +2,7 @@ package com.expense.management.config;
 
 import com.expense.management.security.JwtAuthenticationFilter;
 import com.expense.management.security.OAuth2LoginSuccessHandler;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -25,13 +25,19 @@ import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthFilter;
-    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
-    private final UserDetailsService userDetailsService;
-    private final PasswordEncoder passwordEncoder;
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthFilter;
+    
+    @Autowired
+    private OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    
+    @Autowired
+    private UserDetailsService userDetailsService;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
