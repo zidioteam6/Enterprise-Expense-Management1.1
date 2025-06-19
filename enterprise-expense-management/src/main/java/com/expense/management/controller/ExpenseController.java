@@ -1,9 +1,9 @@
 package com.expense.management.controller;
 
-
 import com.expense.management.model.Budget;
 import com.expense.management.model.Expense;
 import com.expense.management.model.ExpenseStatus;
+import com.expense.management.model.User;
 import com.expense.management.enums.ApprovalLevel;
 import com.expense.management.repository.ExpenseRepository;
 import com.expense.management.services.ExpenseService;
@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -51,15 +50,15 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 public class ExpenseController {
 
     private final AuditLogController auditLogController;
-	
-	@Autowired
-	ExpenseService expenseService;
 
-	@Autowired
-	ExpenseRepository expenseRepository;
+    @Autowired
+    ExpenseService expenseService;
 
-	@Autowired
-	com.expense.management.repository.UserRepository userRepository;
+    @Autowired
+    ExpenseRepository expenseRepository;
+
+    @Autowired
+    com.expense.management.repository.UserRepository userRepository;
 
     @Autowired
     private CloudinaryService cloudinaryService;
@@ -67,114 +66,109 @@ public class ExpenseController {
     ExpenseController(AuditLogController auditLogController) {
         this.auditLogController = auditLogController;
     }
-	
-	
-	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseEntity<?> createExpense(
-			 @RequestParam("amount") double amount,
-		        @RequestParam("category") String category,
-		        @RequestParam("description") String description,
-		        @RequestParam("date") String dateString,
-		        @RequestParam(value = "priority", required = false) String priority,
-		        @RequestParam(value = "comments", required = false) String comments,
-		        @RequestParam(value = "attachment", required = false) MultipartFile attachment) throws IOException {
-	    
-		 Expense expense = new Expense();
-		    expense.setAmount(amount);
-		    expense.setCategory(category);
-		    expense.setDescription(description);
-		    expense.setPriority(priority != null ? priority : "MEDIUM");
-		    
-		    // Auto-approve expenses under $100
-		    if (amount <= 100.0) {
-		        expense.setApprovalStatus(ExpenseStatus.APPROVED);
-		    } else {
-		        expense.setApprovalStatus(ExpenseStatus.PENDING);
-		    }
-		    
-		    expense.setComments(comments);
-		    expense.setDate(LocalDate.parse(dateString));
-		    
-		    // Handle receipt upload to Cloudinary
-		    if (attachment != null && !attachment.isEmpty()) {
-		        try {
-		            Map<String, Object> uploadResult = cloudinaryService.uploadReceipt(attachment);
-		            String receiptUrl = cloudinaryService.getSecureUrl(uploadResult);
-		            expense.setReceiptUrl(receiptUrl);
-		            expense.setAttachmentType(attachment.getContentType());
-		        } catch (Exception e) {
-		            return ResponseEntity.badRequest().body(Map.of("error", "Receipt upload failed: " + e.getMessage()));
-		        }
-		    }
 
-		    // Associate with current user
-		    String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-		    com.expense.management.model.User user = userRepository.findByEmail(userEmail).orElse(null);
-		    expense.setUser(user);
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createExpense(
+            @RequestParam("amount") double amount,
+            @RequestParam("category") String category,
+            @RequestParam("description") String description,
+            @RequestParam("date") String dateString,
+            @RequestParam(value = "priority", required = false) String priority,
+            @RequestParam(value = "comments", required = false) String comments,
+            @RequestParam(value = "attachment", required = false) MultipartFile attachment) throws IOException {
 
-		    expenseService.add(expense);
-		    
-		    // Create a custom response object to avoid circular reference
-		    Map<String, Object> response = new HashMap<>();
-		    response.put("message", "Expense saved successfully");
-		    
-		    Map<String, Object> expenseData = new HashMap<>();
-		    expenseData.put("id", expense.getId());
-		    expenseData.put("amount", expense.getAmount());
-		    expenseData.put("category", expense.getCategory());
-		    expenseData.put("description", expense.getDescription());
-		    expenseData.put("date", expense.getDate());
-		    expenseData.put("approvalStatus", expense.getApprovalStatus());
-		    expenseData.put("comments", expense.getComments());
-		    expenseData.put("priority", expense.getPriority());
-		    expenseData.put("receiptUrl", expense.getReceiptUrl());
-		    
-		    response.put("expense", expenseData);
-		    
-		    return ResponseEntity.ok(response);
-	}
-	
-	
-	
-	
+        Expense expense = new Expense();
+        expense.setAmount(amount);
+        expense.setCategory(category);
+        expense.setDescription(description);
+        expense.setPriority(priority != null ? priority : "MEDIUM");
+
+        // Auto-approve expenses under $100
+        if (amount <= 100.0) {
+            expense.setApprovalStatus(ExpenseStatus.APPROVED);
+        } else {
+            expense.setApprovalStatus(ExpenseStatus.PENDING);
+        }
+
+        expense.setComments(comments);
+        expense.setDate(LocalDate.parse(dateString));
+
+        // Handle receipt upload to Cloudinary
+        if (attachment != null && !attachment.isEmpty()) {
+            try {
+                Map<String, Object> uploadResult = cloudinaryService.uploadReceipt(attachment);
+                String receiptUrl = cloudinaryService.getSecureUrl(uploadResult);
+                expense.setReceiptUrl(receiptUrl);
+                expense.setAttachmentType(attachment.getContentType());
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Receipt upload failed: " + e.getMessage()));
+            }
+        }
+
+        // Associate with current user
+        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(userEmail).orElse(null);
+        expense.setUser(user);
+
+        expenseService.add(expense);
+
+        // Create a custom response object to avoid circular reference
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Expense saved successfully");
+
+        Map<String, Object> expenseData = new HashMap<>();
+        expenseData.put("id", expense.getId());
+        expenseData.put("amount", expense.getAmount());
+        expenseData.put("category", expense.getCategory());
+        expenseData.put("description", expense.getDescription());
+        expenseData.put("date", expense.getDate());
+        expenseData.put("approvalStatus", expense.getApprovalStatus());
+        expenseData.put("comments", expense.getComments());
+        expenseData.put("priority", expense.getPriority());
+        expenseData.put("receiptUrl", expense.getReceiptUrl());
+
+        response.put("expense", expenseData);
+
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping
     public ResponseEntity<?> getAllExpenses() {
         List<Expense> expenses = expenseService.getAll();
-        
+
         // Create clean expense data without circular references
         List<Map<String, Object>> cleanExpenses = expenses.stream()
-            .map(expense -> {
-                Map<String, Object> cleanExpense = new HashMap<>();
-                cleanExpense.put("id", expense.getId());
-                cleanExpense.put("amount", expense.getAmount());
-                cleanExpense.put("category", expense.getCategory());
-                cleanExpense.put("description", expense.getDescription());
-                cleanExpense.put("date", expense.getDate());
-                cleanExpense.put("approvalStatus", expense.getApprovalStatus());
-                cleanExpense.put("approvalLevel", expense.getApprovalLevel());
-                cleanExpense.put("priority", expense.getPriority());
-                cleanExpense.put("comments", expense.getComments());
-                cleanExpense.put("attachmentType", expense.getAttachmentType());
-                
-                // Add user information without circular reference
-                if (expense.getUser() != null) {
-                    Map<String, Object> userInfo = new HashMap<>();
-                    userInfo.put("id", expense.getUser().getId());
-                    userInfo.put("email", expense.getUser().getEmail());
-                    userInfo.put("fullName", expense.getUser().getFullName());
-                    userInfo.put("role", expense.getUser().getRole() != null ? expense.getUser().getRole().getName() : null);
-                    cleanExpense.put("user", userInfo);
-                }
-                
-                return cleanExpense;
-            })
-            .collect(java.util.stream.Collectors.toList());
-        
+                .map(expense -> {
+                    Map<String, Object> cleanExpense = new HashMap<>();
+                    cleanExpense.put("id", expense.getId());
+                    cleanExpense.put("amount", expense.getAmount());
+                    cleanExpense.put("category", expense.getCategory());
+                    cleanExpense.put("description", expense.getDescription());
+                    cleanExpense.put("date", expense.getDate());
+                    cleanExpense.put("approvalStatus", expense.getApprovalStatus());
+                    cleanExpense.put("approvalLevel", expense.getApprovalLevel());
+                    cleanExpense.put("priority", expense.getPriority());
+                    cleanExpense.put("comments", expense.getComments());
+                    cleanExpense.put("attachmentType", expense.getAttachmentType());
+
+                    // Add user information without circular reference
+                    if (expense.getUser() != null) {
+                        Map<String, Object> userInfo = new HashMap<>();
+                        userInfo.put("id", expense.getUser().getId());
+                        userInfo.put("email", expense.getUser().getEmail());
+                        userInfo.put("fullName", expense.getUser().getFullName());
+                        userInfo.put("role",
+                                expense.getUser().getRole() != null ? expense.getUser().getRole().getName() : null);
+                        cleanExpense.put("user", userInfo);
+                    }
+
+                    return cleanExpense;
+                })
+                .collect(java.util.stream.Collectors.toList());
+
         return new ResponseEntity<>(cleanExpenses, HttpStatus.OK);
     }
 
-    
-    
     @GetMapping("/total")
     public double getTotalExpenses() {
         double totalExpenses = 0.0;
@@ -231,34 +225,37 @@ public class ExpenseController {
         System.out.println("=== DELETE EXPENSE ENDPOINT CALLED ===");
         System.out.println("Expense ID: " + expenseId);
         System.out.println("Current user: " + SecurityContextHolder.getContext().getAuthentication().getName());
-        
+
         try {
             // Use Spring Data JPA repository instead of HibernateUtil
             Expense expense = expenseRepository.findById(expenseId).orElse(null);
-            
+
             System.out.println("Found expense: " + (expense != null ? "YES" : "NO"));
             if (expense != null) {
-                System.out.println("Expense user: " + (expense.getUser() != null ? expense.getUser().getEmail() : "NULL"));
+                System.out.println(
+                        "Expense user: " + (expense.getUser() != null ? expense.getUser().getEmail() : "NULL"));
                 System.out.println("Expense status: " + expense.getApprovalStatus());
             }
-            
+
             if (expense == null) {
                 System.out.println("Expense not found, returning 404");
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Expense not found."));
             }
-            
+
             // Get current user
             String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
             if (expense.getUser() == null || !expense.getUser().getEmail().equals(userEmail)) {
                 System.out.println("User not authorized to delete this expense");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not allowed to delete this expense."));
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("message", "You are not allowed to delete this expense."));
             }
-            
+
             if (expense.getApprovalStatus() != ExpenseStatus.PENDING) {
                 System.out.println("Expense is not pending, cannot delete");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only pending expenses can be deleted."));
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("message", "Only pending expenses can be deleted."));
             }
-            
+
             // Delete receipt from Cloudinary if exists
             if (expense.getReceiptUrl() != null && !expense.getReceiptUrl().isEmpty()) {
                 try {
@@ -271,7 +268,33 @@ public class ExpenseController {
                     // Continue with expense deletion even if Cloudinary deletion fails
                 }
             }
-            
+
+            // Delete receipt from Cloudinary if exists
+            if (expense.getReceiptUrl() != null && !expense.getReceiptUrl().isEmpty()) {
+                try {
+                    String publicId = cloudinaryService.extractPublicIdFromUrl(expense.getReceiptUrl());
+                    if (publicId != null) {
+                        cloudinaryService.deleteFile(publicId);
+                    }
+                } catch (Exception e) {
+                    System.out.println("Warning: Failed to delete receipt from Cloudinary: " + e.getMessage());
+                    // Continue with expense deletion even if Cloudinary deletion fails
+                }
+            }
+
+            // Delete receipt from Cloudinary if exists
+            if (expense.getReceiptUrl() != null && !expense.getReceiptUrl().isEmpty()) {
+                try {
+                    String publicId = cloudinaryService.extractPublicIdFromUrl(expense.getReceiptUrl());
+                    if (publicId != null) {
+                        cloudinaryService.deleteFile(publicId);
+                    }
+                } catch (Exception e) {
+                    System.out.println("Warning: Failed to delete receipt from Cloudinary: " + e.getMessage());
+                    // Continue with expense deletion even if Cloudinary deletion fails
+                }
+            }
+
             System.out.println("Deleting expense...");
             expenseRepository.delete(expense);
             System.out.println("Expense deleted successfully!");
@@ -279,7 +302,8 @@ public class ExpenseController {
         } catch (Exception e) {
             System.out.println("Error deleting expense: " + e.getMessage());
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Error deleting expense."));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Error deleting expense."));
         }
     }
 
@@ -336,14 +360,13 @@ public class ExpenseController {
     // Approve expense by ID
     @PutMapping("/{id}/approve")
     public ResponseEntity<?> approveExpense(@PathVariable Long id) {
-    	boolean bol = expenseService.approve(id);
-    	System.out.println(bol);
-    	if(bol) {
-    		return new ResponseEntity<>("updated!" ,HttpStatus.OK);
-    	}
-    	
-    	
-        return new ResponseEntity<>( "failed!" ,HttpStatus.OK);
+        boolean bol = expenseService.approve(id);
+        System.out.println(bol);
+        if (bol) {
+            return new ResponseEntity<>("updated!", HttpStatus.OK);
+        }
+
+        return new ResponseEntity<>("failed!", HttpStatus.OK);
     }
 
     ///////////////////////////////////
@@ -359,7 +382,7 @@ public class ExpenseController {
             }
             // Get user's expenses
             List<Expense> userExpenses = expenseService.getAllByUser(user);
-            
+
             if (format.equalsIgnoreCase("pdf")) {
                 byte[] pdfBytes = generatePdfReport(userExpenses);
                 return ResponseEntity.ok()
@@ -370,7 +393,8 @@ public class ExpenseController {
                 byte[] excelBytes = generateExcelReport(userExpenses);
                 return ResponseEntity.ok()
                         .header("Content-Disposition", "attachment; filename=expenses_report.xlsx")
-                        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                        .contentType(MediaType
+                                .parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                         .body(excelBytes);
             } else {
                 return ResponseEntity.badRequest().body("Unsupported format".getBytes());
@@ -381,41 +405,42 @@ public class ExpenseController {
                     .body("Error generating report".getBytes());
         }
     }
-    
+
     private byte[] generatePdfReport(List<Expense> expenses) throws DocumentException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Document document = new Document();
         PdfWriter.getInstance(document, baos);
-        
+
         document.open();
-        
+
         // Add title
         Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
         Paragraph title = new Paragraph("Expense Report", titleFont);
         title.setAlignment(Element.ALIGN_CENTER);
         document.add(title);
         document.add(new Paragraph(" ")); // Spacing
-        
+
         // Add date
         Font dateFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
-        Paragraph date = new Paragraph("Generated on: " + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")), dateFont);
+        Paragraph date = new Paragraph(
+                "Generated on: " + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")), dateFont);
         document.add(date);
         document.add(new Paragraph(" ")); // Spacing
-        
+
         // Create table
         PdfPTable table = new PdfPTable(5);
         table.setWidthPercentage(100);
-        
+
         // Add headers
         Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
-        String[] headers = {"Date", "Category", "Description", "Amount", "Status"};
+        String[] headers = { "Date", "Category", "Description", "Amount", "Status" };
         for (String header : headers) {
             PdfPCell cell = new PdfPCell(new Phrase(header, headerFont));
             cell.setHorizontalAlignment(Element.ALIGN_CENTER);
             cell.setPadding(5);
             table.addCell(cell);
         }
-        
+
         // Add data
         Font dataFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
         double totalAmount = 0;
@@ -427,31 +452,31 @@ public class ExpenseController {
             table.addCell(new PdfPCell(new Phrase(expense.getApprovalStatus().toString(), dataFont)));
             totalAmount += expense.getAmount();
         }
-        
+
         document.add(table);
         document.add(new Paragraph(" ")); // Spacing
-        
+
         // Add total
         Font totalFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
         Paragraph total = new Paragraph("Total Amount: $" + String.format("%.2f", totalAmount), totalFont);
         document.add(total);
-        
+
         document.close();
         return baos.toByteArray();
     }
-    
+
     private String generateCsvReport(List<Expense> expenses) {
         StringBuilder csv = new StringBuilder();
         csv.append("Date,Category,Description,Amount,Status\n");
-        
+
         for (Expense expense : expenses) {
             csv.append(expense.getDate()).append(",")
-               .append(expense.getCategory()).append(",")
-               .append("\"").append(expense.getDescription().replace("\"", "\"\"")).append("\",")
-               .append(expense.getAmount()).append(",")
-               .append(expense.getApprovalStatus()).append("\n");
+                    .append(expense.getCategory()).append(",")
+                    .append("\"").append(expense.getDescription().replace("\"", "\"\"")).append("\",")
+                    .append(expense.getAmount()).append(",")
+                    .append(expense.getApprovalStatus()).append("\n");
         }
-        
+
         return csv.toString();
     }
 
@@ -461,7 +486,7 @@ public class ExpenseController {
             int rowIdx = 0;
             // Header
             Row header = sheet.createRow(rowIdx++);
-            String[] columns = {"Date", "Category", "Description", "Amount", "Status"};
+            String[] columns = { "Date", "Category", "Description", "Amount", "Status" };
             for (int i = 0; i < columns.length; i++) {
                 Cell cell = header.createCell(i);
                 cell.setCellValue(columns[i]);
@@ -473,7 +498,8 @@ public class ExpenseController {
                 row.createCell(1).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
                 row.createCell(2).setCellValue(expense.getDescription() != null ? expense.getDescription() : "");
                 row.createCell(3).setCellValue(expense.getAmount());
-                row.createCell(4).setCellValue(expense.getApprovalStatus() != null ? expense.getApprovalStatus().toString() : "");
+                row.createCell(4).setCellValue(
+                        expense.getApprovalStatus() != null ? expense.getApprovalStatus().toString() : "");
             }
             // Autosize columns
             for (int i = 0; i < columns.length; i++) {
@@ -503,12 +529,24 @@ public class ExpenseController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
             }
             // Prepare updated values, fallback to current if not provided
-            double amount = updates.containsKey("amount") && updates.get("amount") != null ? Double.parseDouble(updates.get("amount").toString()) : expense.getAmount();
-            String category = updates.containsKey("category") && updates.get("category") != null ? updates.get("category").toString() : expense.getCategory();
-            String description = updates.containsKey("description") && updates.get("description") != null ? updates.get("description").toString() : expense.getDescription();
-            java.time.LocalDate date = updates.containsKey("date") && updates.get("date") != null ? java.time.LocalDate.parse(updates.get("date").toString()) : expense.getDate();
-            String comments = updates.containsKey("comments") && updates.get("comments") != null ? updates.get("comments").toString() : expense.getComments();
-            String priority = updates.containsKey("priority") && updates.get("priority") != null ? updates.get("priority").toString() : expense.getPriority();
+            double amount = updates.containsKey("amount") && updates.get("amount") != null
+                    ? Double.parseDouble(updates.get("amount").toString())
+                    : expense.getAmount();
+            String category = updates.containsKey("category") && updates.get("category") != null
+                    ? updates.get("category").toString()
+                    : expense.getCategory();
+            String description = updates.containsKey("description") && updates.get("description") != null
+                    ? updates.get("description").toString()
+                    : expense.getDescription();
+            java.time.LocalDate date = updates.containsKey("date") && updates.get("date") != null
+                    ? java.time.LocalDate.parse(updates.get("date").toString())
+                    : expense.getDate();
+            String comments = updates.containsKey("comments") && updates.get("comments") != null
+                    ? updates.get("comments").toString()
+                    : expense.getComments();
+            String priority = updates.containsKey("priority") && updates.get("priority") != null
+                    ? updates.get("priority").toString()
+                    : expense.getPriority();
 
             // Set approval status based on amount after any edit
             double AUTO_APPROVAL_THRESHOLD = 100.0;
@@ -548,12 +586,13 @@ public class ExpenseController {
             List<Expense> userExpenses = expenseService.getAllByUser(user);
             // Filter for the given year
             List<Expense> yearlyExpenses = userExpenses.stream()
-                .filter(e -> e.getDate() != null && e.getDate().getYear() == year)
-                .toList();
+                    .filter(e -> e.getDate() != null && e.getDate().getYear() == year)
+                    .toList();
 
             // Aggregate by month
             Map<Integer, Double> monthTotals = new HashMap<>();
-            for (int m = 1; m <= 12; m++) monthTotals.put(m, 0.0);
+            for (int m = 1; m <= 12; m++)
+                monthTotals.put(m, 0.0);
             for (Expense e : yearlyExpenses) {
                 int month = e.getDate().getMonthValue();
                 monthTotals.put(month, monthTotals.get(month) + e.getAmount());
@@ -563,25 +602,28 @@ public class ExpenseController {
             byte[] pdfBytes = generateYearlyTrendPdf(year, monthTotals);
 
             return ResponseEntity.ok()
-                .header("Content-Disposition", "attachment; filename=yearly_trend_report_" + year + ".pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdfBytes);
+                    .header("Content-Disposition", "attachment; filename=yearly_trend_report_" + year + ".pdf")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error generating yearly trend report".getBytes());
+                    .body("Error generating yearly trend report".getBytes());
         }
     }
 
-    private byte[] generateYearlyTrendPdf(int year, Map<Integer, Double> monthTotals) throws com.itextpdf.text.DocumentException {
+    private byte[] generateYearlyTrendPdf(int year, Map<Integer, Double> monthTotals)
+            throws com.itextpdf.text.DocumentException {
         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
         com.itextpdf.text.Document document = new com.itextpdf.text.Document();
         com.itextpdf.text.pdf.PdfWriter.getInstance(document, baos);
 
         document.open();
 
-        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
-        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Yearly Expense Trend Report - " + year, titleFont);
+        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
+        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Yearly Expense Trend Report - " + year,
+                titleFont);
         title.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
         document.add(title);
         document.add(new com.itextpdf.text.Paragraph(" "));
@@ -590,28 +632,35 @@ public class ExpenseController {
         table.setWidthPercentage(60);
         table.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
 
-        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
-        com.itextpdf.text.pdf.PdfPCell monthHeader = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("Month", headerFont));
-        com.itextpdf.text.pdf.PdfPCell totalHeader = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("Total Spent", headerFont));
+        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
+        com.itextpdf.text.pdf.PdfPCell monthHeader = new com.itextpdf.text.pdf.PdfPCell(
+                new com.itextpdf.text.Phrase("Month", headerFont));
+        com.itextpdf.text.pdf.PdfPCell totalHeader = new com.itextpdf.text.pdf.PdfPCell(
+                new com.itextpdf.text.Phrase("Total Spent", headerFont));
         monthHeader.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
         totalHeader.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
         table.addCell(monthHeader);
         table.addCell(totalHeader);
 
-        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA, 11);
+        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA,
+                11);
         double yearlyTotal = 0;
         for (int m = 1; m <= 12; m++) {
             String monthName = java.time.Month.of(m).name();
             double total = monthTotals.get(m);
             table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(monthName, dataFont)));
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("$" + String.format("%.2f", total), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase("$" + String.format("%.2f", total), dataFont)));
             yearlyTotal += total;
         }
         document.add(table);
         document.add(new com.itextpdf.text.Paragraph(" "));
 
-        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
-        com.itextpdf.text.Paragraph total = new com.itextpdf.text.Paragraph("Yearly Total: $" + String.format("%.2f", yearlyTotal), totalFont);
+        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
+        com.itextpdf.text.Paragraph total = new com.itextpdf.text.Paragraph(
+                "Yearly Total: $" + String.format("%.2f", yearlyTotal), totalFont);
         total.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
         document.add(total);
 
@@ -630,32 +679,37 @@ public class ExpenseController {
             // Get user's expenses for the month
             List<Expense> userExpenses = expenseService.getAllByUser(user);
             List<Expense> monthlyExpenses = userExpenses.stream()
-                .filter(e -> e.getDate() != null && e.getDate().getYear() == year && e.getDate().getMonthValue() == month)
-                .toList();
+                    .filter(e -> e.getDate() != null && e.getDate().getYear() == year
+                            && e.getDate().getMonthValue() == month)
+                    .toList();
 
             // Generate PDF
             byte[] pdfBytes = generateMonthlyDetailedPdf(year, month, monthlyExpenses);
 
             return ResponseEntity.ok()
-                .header("Content-Disposition", "attachment; filename=monthly_detailed_report_" + year + "_" + month + ".pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdfBytes);
+                    .header("Content-Disposition",
+                            "attachment; filename=monthly_detailed_report_" + year + "_" + month + ".pdf")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error generating monthly detailed report".getBytes());
+                    .body("Error generating monthly detailed report".getBytes());
         }
     }
 
-    private byte[] generateMonthlyDetailedPdf(int year, int month, List<Expense> expenses) throws com.itextpdf.text.DocumentException {
+    private byte[] generateMonthlyDetailedPdf(int year, int month, List<Expense> expenses)
+            throws com.itextpdf.text.DocumentException {
         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
         com.itextpdf.text.Document document = new com.itextpdf.text.Document();
         com.itextpdf.text.pdf.PdfWriter.getInstance(document, baos);
 
         document.open();
 
-        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
-        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Detailed Monthly Expense Report - " + year + "-" + String.format("%02d", month), titleFont);
+        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
+        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph(
+                "Detailed Monthly Expense Report - " + year + "-" + String.format("%02d", month), titleFont);
         title.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
         document.add(title);
         document.add(new com.itextpdf.text.Paragraph(" "));
@@ -663,31 +717,41 @@ public class ExpenseController {
         com.itextpdf.text.pdf.PdfPTable table = new com.itextpdf.text.pdf.PdfPTable(5);
         table.setWidthPercentage(100);
 
-        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
-        String[] headers = {"Date", "Category", "Description", "Amount", "Status"};
+        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
+        String[] headers = { "Date", "Category", "Description", "Amount", "Status" };
         for (String header : headers) {
-            com.itextpdf.text.pdf.PdfPCell cell = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(header, headerFont));
+            com.itextpdf.text.pdf.PdfPCell cell = new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase(header, headerFont));
             cell.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
             cell.setPadding(5);
             table.addCell(cell);
         }
 
-        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA, 10);
+        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA,
+                10);
         double totalAmount = 0;
         for (Expense expense : expenses) {
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getDate().toString(), dataFont)));
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getCategory(), dataFont)));
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getDescription(), dataFont)));
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("$" + String.format("%.2f", expense.getAmount()), dataFont)));
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getApprovalStatus().toString(), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase(expense.getDate().toString(), dataFont)));
+            table.addCell(
+                    new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(expense.getCategory(), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase(expense.getDescription(), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase("$" + String.format("%.2f", expense.getAmount()), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase(expense.getApprovalStatus().toString(), dataFont)));
             totalAmount += expense.getAmount();
         }
 
         document.add(table);
         document.add(new com.itextpdf.text.Paragraph(" "));
 
-        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
-        com.itextpdf.text.Paragraph total = new com.itextpdf.text.Paragraph("Monthly Total: $" + String.format("%.2f", totalAmount), totalFont);
+        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
+        com.itextpdf.text.Paragraph total = new com.itextpdf.text.Paragraph(
+                "Monthly Total: $" + String.format("%.2f", totalAmount), totalFont);
         total.setAlignment(com.itextpdf.text.Element.ALIGN_RIGHT);
         document.add(total);
 
@@ -706,8 +770,8 @@ public class ExpenseController {
             // Get user's expenses for the year
             List<Expense> userExpenses = expenseService.getAllByUser(user);
             List<Expense> yearlyExpenses = userExpenses.stream()
-                .filter(e -> e.getDate() != null && e.getDate().getYear() == year)
-                .toList();
+                    .filter(e -> e.getDate() != null && e.getDate().getYear() == year)
+                    .toList();
 
             // Aggregate by category
             Map<String, Double> categoryTotals = new HashMap<>();
@@ -721,25 +785,28 @@ public class ExpenseController {
             byte[] pdfBytes = generateCategorySpendingPdf(year, categoryTotals, total);
 
             return ResponseEntity.ok()
-                .header("Content-Disposition", "attachment; filename=category_spending_report_" + year + ".pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdfBytes);
+                    .header("Content-Disposition", "attachment; filename=category_spending_report_" + year + ".pdf")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error generating category spending report".getBytes());
+                    .body("Error generating category spending report".getBytes());
         }
     }
 
-    private byte[] generateCategorySpendingPdf(int year, Map<String, Double> categoryTotals, double total) throws com.itextpdf.text.DocumentException {
+    private byte[] generateCategorySpendingPdf(int year, Map<String, Double> categoryTotals, double total)
+            throws com.itextpdf.text.DocumentException {
         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
         com.itextpdf.text.Document document = new com.itextpdf.text.Document();
         com.itextpdf.text.pdf.PdfWriter.getInstance(document, baos);
 
         document.open();
 
-        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
-        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Category Spending Report - " + year, titleFont);
+        com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 18);
+        com.itextpdf.text.Paragraph title = new com.itextpdf.text.Paragraph("Category Spending Report - " + year,
+                titleFont);
         title.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
         document.add(title);
         document.add(new com.itextpdf.text.Paragraph(" "));
@@ -748,27 +815,34 @@ public class ExpenseController {
         table.setWidthPercentage(80);
         table.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
 
-        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
-        String[] headers = {"Category", "Total Spent", "Percent"};
+        com.itextpdf.text.Font headerFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 12);
+        String[] headers = { "Category", "Total Spent", "Percent" };
         for (String header : headers) {
-            com.itextpdf.text.pdf.PdfPCell cell = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(header, headerFont));
+            com.itextpdf.text.pdf.PdfPCell cell = new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase(header, headerFont));
             cell.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
             cell.setPadding(5);
             table.addCell(cell);
         }
 
-        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA, 11);
+        com.itextpdf.text.Font dataFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA,
+                11);
         for (Map.Entry<String, Double> entry : categoryTotals.entrySet()) {
             table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(entry.getKey(), dataFont)));
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase("$" + String.format("%.2f", entry.getValue()), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase("$" + String.format("%.2f", entry.getValue()), dataFont)));
             double percent = total > 0 ? (entry.getValue() / total) * 100 : 0;
-            table.addCell(new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(String.format("%.2f%%", percent), dataFont)));
+            table.addCell(new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase(String.format("%.2f%%", percent), dataFont)));
         }
         document.add(table);
         document.add(new com.itextpdf.text.Paragraph(" "));
 
-        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory.getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
-        com.itextpdf.text.Paragraph totalPara = new com.itextpdf.text.Paragraph("Yearly Total: $" + String.format("%.2f", total), totalFont);
+        com.itextpdf.text.Font totalFont = com.itextpdf.text.FontFactory
+                .getFont(com.itextpdf.text.FontFactory.HELVETICA_BOLD, 14);
+        com.itextpdf.text.Paragraph totalPara = new com.itextpdf.text.Paragraph(
+                "Yearly Total: $" + String.format("%.2f", total), totalFont);
         totalPara.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
         document.add(totalPara);
 
