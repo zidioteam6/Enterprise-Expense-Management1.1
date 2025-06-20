@@ -25,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 
 const API_BASE = 'http://localhost:8080';
 
-const ManagerDashboard = () => {
+const FinanceDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [notifications] = useState([]);
@@ -133,7 +133,7 @@ const ManagerDashboard = () => {
       default: return 'text-gray-600 bg-gray-100';
     }
   };
-  
+
   const handleExpenseAction = async (action, expense) => {
     try {
       let endpoint = '';
@@ -284,7 +284,7 @@ const ManagerDashboard = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      {expense.approvalStatus === 'PENDING' &&(
+                      {expense.approvalStatus === 'PENDING'  && (
                         <>
                           <button 
                             onClick={() => handleExpenseAction('approve', expense)}
@@ -644,7 +644,7 @@ const ManagerDashboard = () => {
               <Building className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">ZIDIO Development</h1>
-                <p className="text-sm text-gray-500">Manager Dashboard</p>
+                <p className="text-sm text-gray-500">Finance Manager Dashboard</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -680,7 +680,7 @@ const ManagerDashboard = () => {
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">M</span>
                 </div>
-                <span className="text-sm font-medium text-gray-700">Manager User</span>
+                <span className="text-sm font-medium text-gray-700">Finance Manager {JSON.parse(localStorage.getItem('user')).fullName}</span>
                 <button
                   onClick={() => { logout(); navigate('/login'); }}
                   className="ml-4 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
@@ -729,4 +729,4 @@ const ManagerDashboard = () => {
   );
 };
 
-export default ManagerDashboard; 
+export default FinanceDashboard; 

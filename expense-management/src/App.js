@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import FinanceDashboard from './pages/FinanceDashboard';
 import './App.css';
 
 function App() {
@@ -36,6 +37,15 @@ function App() {
           element={
             <ProtectedRoute managerOnly={true}>
               <ManagerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/finance-dashboard"
+          element={
+            <ProtectedRoute financeOnly={true}>
+              <FinanceDashboard />
             </ProtectedRoute>
           }
         />

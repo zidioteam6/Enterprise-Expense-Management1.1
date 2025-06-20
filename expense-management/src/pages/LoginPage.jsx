@@ -35,6 +35,12 @@ const LoginPage = () => {
         (Array.isArray(user.roles) && user.roles.includes('ROLE_MANAGER'))
       ) {
         navigate('/manager-dashboard');
+      } else if (
+        user.role === 'ROLE_FINANCE' ||
+        user.roles === 'ROLE_FINANCE' ||
+        (Array.isArray(user.roles) && user.roles.includes('ROLE_FINANCE'))
+      ) {
+        navigate('/finance-dashboard');
       } else {
         navigate('/dashboard');
       }
@@ -72,6 +78,12 @@ const LoginPage = () => {
           (Array.isArray(userData.roles) && userData.roles.includes('ROLE_MANAGER'))
         ) {
           navigate('/manager-dashboard');
+        } else if (
+          userData.role === 'ROLE_FINANCE' ||
+          userData.roles === 'ROLE_FINANCE' ||
+          (Array.isArray(userData.roles) && userData.roles.includes('ROLE_FINANCE'))
+        ) {
+          navigate('/finance-dashboard');
         } else {
           navigate('/dashboard');
         }
