@@ -73,41 +73,49 @@ public class Expense {
 	User user;
 
 	// // Getters and Setters for all fields
-	// public Long getId() { return id; }
-	// public void setId(Long id) { this.id = id; }
+	public Long getId() { return id; }
+	public void setId(Long id) { this.id = id; }
 	
-	// public double getAmount() { return amount; }
-	// public void setAmount(double amount) { this.amount = amount; }
+	public double getAmount() { return amount; }
+	public void setAmount(double amount) { this.amount = amount; }
 	
-	// public String getCategory() { return category; }
-	// public void setCategory(String category) { this.category = category; }
+	public String getCategory() { return category; }
+	public void setCategory(String category) { this.category = category; }
 	
-	// public String getDescription() { return description; }
-	// public void setDescription(String description) { this.description = description; }
+	public String getDescription() { return description; }
+	public void setDescription(String description) { this.description = description; }
 	
-	// public LocalDate getDate() { return date; }
-	// public void setDate(LocalDate date) { this.date = date; }
+	public LocalDate getDate() { return date; }
+	public void setDate(LocalDate date) { this.date = date; }
 	
-	// public ExpenseStatus getApprovalStatus() { return approvalStatus; }
-	// public void setApprovalStatus(ExpenseStatus approvalStatus) { this.approvalStatus = approvalStatus; }
+	public ExpenseStatus getApprovalStatus() { return approvalStatus; }
+	public void setApprovalStatus(ExpenseStatus approvalStatus) { this.approvalStatus = approvalStatus; }
 	
-	// public ApprovalLevel getApprovalLevel() { return approvalLevel; }
-	// public void setApprovalLevel(ApprovalLevel approvalLevel) { this.approvalLevel = approvalLevel; }
+	public ApprovalLevel getApprovalLevel() { return approvalLevel; }
+	public void setApprovalLevel(ApprovalLevel approvalLevel) { this.approvalLevel = approvalLevel; }
 	
-	// public String getPriority() { return priority; }
-	// public void setPriority(String priority) { this.priority = priority; }
+	public String getPriority() { return priority; }
+	public void setPriority(String priority) { this.priority = priority; }
 	
-	// public String getComments() { return comments; }
-	// public void setComments(String comments) { this.comments = comments; }
+	public String getComments() { return comments; }
+	public void setComments(String comments) { this.comments = comments; }
 	
-	// public byte[] getAttachment() { return attachment; }
-	// public void setAttachment(byte[] attachment) { this.attachment = attachment; }
+	public byte[] getAttachment() { return attachment; }
+	public void setAttachment(byte[] attachment) { this.attachment = attachment; }
 	
-	// public String getAttachmentType() { return attachmentType; }
-	// public void setAttachmentType(String attachmentType) { this.attachmentType = attachmentType; }
+	public String getAttachmentType() { return attachmentType; }
+	public void setAttachmentType(String attachmentType) { this.attachmentType = attachmentType; }
 	
-	// public User getUser() { return user; }
-	// public void setUser(User user) { this.user = user; }
+	public User getUser() { return user; }
+	public void setUser(User user) { this.user = user; }
+
+    public String getReceiptUrl() {
+        return receiptUrl;
+    }
+
+    public void setReceiptUrl(String receiptUrl) {
+        this.receiptUrl = receiptUrl;
+    }
 	
 	
 }

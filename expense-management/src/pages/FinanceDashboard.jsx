@@ -54,13 +54,14 @@ const FinanceDashboard = () => {
         });
         console.log('Dashboard data:', dashboardRes.data);
         setDashboardData(dashboardRes.data);
-        // Expenses
-        const expensesRes = await axios.get(`${API_BASE}/api/expenses`, {
+        
+        // Get expenses pending finance approval only (approved by manager)
+        const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/finance`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`
           }
         });
-        console.log('Expenses data:', expensesRes.data);
+        console.log('Finance pending expenses data:', expensesRes.data);
         console.log('Type of expenses data:', typeof expensesRes.data);
         console.log('Is array?', Array.isArray(expensesRes.data));
         
@@ -92,10 +93,10 @@ const FinanceDashboard = () => {
           expensesData = [];
         }
         
-        console.log('Processed expenses data:', expensesData);
-        console.log('Number of expenses fetched:', expensesData.length);
-        console.log('Expenses with PENDING status:', expensesData.filter(e => e.approvalStatus === 'PENDING'));
+        console.log('Processed finance pending expenses data:', expensesData);
+        console.log('Number of expenses pending finance approval:', expensesData.length);
         setExpenses(expensesData);
+        
         // Budget
         const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, {
           headers: {
@@ -105,8 +106,8 @@ const FinanceDashboard = () => {
         console.log('Budget data:', budgetRes.data);
         setBudget(budgetRes.data.budget);
       } catch (err) {
-        console.error('Manager dashboard fetch error:', err);
-        setError(err?.response?.data?.message || err.message || 'Failed to load manager dashboard data.');
+        console.error('Finance dashboard fetch error:', err);
+        setError(err?.response?.data?.message || err.message || 'Failed to load finance dashboard data.');
       } finally {
         setLoading(false);
       }

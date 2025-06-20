@@ -31,6 +31,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import api from '../utils/axios';
 
 const API_BASE = 'http://localhost:8080';
 
@@ -64,22 +65,27 @@ const AdminDashboard = () => {
       try {
         const token = localStorage.getItem('token');
         const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+        
         // Dashboard stats
         const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, authHeader);
         console.log('Dashboard data:', dashboardRes.data);
         setDashboardData(dashboardRes.data);
-        // Expenses
-        const expensesRes = await axios.get(`${API_BASE}/api/expenses`, authHeader);
-        console.log('Expenses data:', expensesRes.data);
+        
+        // Get expenses pending admin approval only (approved by finance)
+        const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/admin`, authHeader);
+        console.log('Admin pending expenses data:', expensesRes.data);
         setExpenses(expensesRes.data);
+        
         // Audit logs
         const auditRes = await axios.get(`${API_BASE}/api/audit/logs`, authHeader);
         console.log('Audit logs data:', auditRes.data);
         setAuditLogs(auditRes.data);
+        
         // Budget
         const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, authHeader);
         console.log('Budget data:', budgetRes.data);
         setBudget(budgetRes.data.budget);
+        
         // Users (fetch from backend)
         const usersRes = await axios.get(`${API_BASE}/api/auth/users`, authHeader);
         console.log('Users data:', usersRes.data);
@@ -175,23 +181,28 @@ const AdminDashboard = () => {
 
   const handleExpenseAction = async (action, expense) => {
     try {
-      const token = localStorage.getItem('token');
+      let endpoint = '';
+      let method = 'PUT';
       switch (action) {
+        case 'approve':
+          endpoint = `${API_BASE}/api/expenses/${expense.id}/approve`;
+          break;
+        case 'reject':
+          endpoint = `${API_BASE}/api/expenses/${expense.id}/reject`;
+          break;
         case 'view':
           setSelectedExpense(expense);
           setExpenseModalMode('view');
           setShowExpenseModal(true);
-          break;
+          return;
         case 'edit':
           setSelectedExpense(expense);
           setExpenseModalMode('edit');
           setShowExpenseModal(true);
-          break;
+          return;
         case 'delete':
           if (window.confirm('Are you sure you want to delete this expense?')) {
-            await axios.delete(`${API_BASE}/api/expenses/${expense.id}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.delete(`/expenses/${expense.id}`);
             // Update the expenses list
             setExpenses(expenses.filter(e => e.id !== expense.id));
             // Update dashboard data
@@ -200,26 +211,18 @@ const AdminDashboard = () => {
               recentExpenses: prev.recentExpenses.filter(e => e.id !== expense.id)
             }));
           }
-          break;
-        case 'approve':
-          await axios.put(`${API_BASE}/api/expenses/${expense.id}/approve`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          // Update the expense status
-          setExpenses(expenses.map(e => 
-            e.id === expense.id ? { ...e, status: 'Approved' } : e
-          ));
-          break;
-        case 'reject':
-          await axios.put(`${API_BASE}/api/expenses/${expense.id}/reject`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          // Update the expense status
-          setExpenses(expenses.map(e => 
-            e.id === expense.id ? { ...e, status: 'Rejected' } : e
-          ));
-          break;
+          return;
+        default:
+          return;
       }
+      // Approve/Reject logic
+      await api({ method, url: endpoint });
+      // Refetch the pending admin expenses after action
+      const token = localStorage.getItem('token');
+      const expensesRes = await api.get('/expenses/pending/admin', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setExpenses(expensesRes.data);
     } catch (error) {
       console.error('Error handling expense action:', error);
       setError(error?.response?.data?.message || 'Failed to perform action');
@@ -305,7 +308,7 @@ const AdminDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={safeArray(dashboardData.monthlyTrends)}>
+            <LineChart data={safeArray(Object.entries(dashboardData.monthlyExpenses || {}).map(([month, amount]) => ({ month, amount })))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -319,28 +322,30 @@ const AdminDashboard = () => {
           <ResponsiveContainer width="100%" height={300}>
             <RechartsPieChart>
               <Pie
-                data={safeArray(dashboardData.expensesByCategory)}
+                data={safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value })))}
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, value }) => `${name}: ${safeToLocaleString(value)}%`}
+                label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
               >
-                {safeArray(dashboardData.expensesByCategory).map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
+                {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"][index % 5]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`${safeToLocaleString(value)}%`, 'Percentage']} />
+              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
             </RechartsPieChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Recent Expenses */}
+      {/* Pending Admin Approval Table (replaces Recent Expenses) */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Recent Expenses</h3>
+          <h3 className="text-lg font-semibold">
+            Expenses Approved by Finance, Pending Admin Approval
+          </h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
@@ -351,22 +356,51 @@ const AdminDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {safeArray(dashboardData.recentExpenses).map((expense) => (
-                <tr key={expense.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.employee}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.status)}`}>
-                      {expense.status}
-                    </span>
+              {expenses.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                    No expenses pending admin approval.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                expenses.map((expense) => (
+                  <tr key={expense.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleExpenseAction('approve', expense)}
+                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                          title="Approve"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => handleExpenseAction('reject', expense)}
+                          className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                          title="Reject"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -497,16 +531,15 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Expense Table */}
+      {/* Expense Table: Pending Admin Approval */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">All Expenses</h3>
+          <h3 className="text-lg font-semibold">Expenses Approved by Finance, Pending Admin Approval</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
@@ -516,58 +549,47 @@ const AdminDashboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {safeArray(dashboardData.recentExpenses).map((expense) => (
-                <tr key={expense.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#{expense.id}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.employee}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.status)}`}>
-                      {expense.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button 
-                        onClick={() => handleExpenseAction('view', expense)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      {expense.status === 'Pending' && (
-                        <>
-                          <button 
-                            onClick={() => handleExpenseAction('edit', expense)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleExpenseAction('delete', expense)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleExpenseAction('approve', expense)}
-                            className="text-green-600 hover:text-green-900"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleExpenseAction('reject', expense)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
+              {expenses.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                    No expenses pending admin approval.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                expenses.map((expense) => (
+                  <tr key={expense.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleExpenseAction('approve', expense)}
+                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                          title="Approve"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => handleExpenseAction('reject', expense)}
+                          className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                          title="Reject"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -595,7 +617,7 @@ const AdminDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Monthly Spending Trend</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={safeArray(dashboardData.monthlyTrends)}>
+            <BarChart data={safeArray(Object.entries(dashboardData.monthlyExpenses || {}).map(([month, amount]) => ({ month, amount })))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -608,18 +630,18 @@ const AdminDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Category Breakdown</h3>
           <div className="space-y-4">
-            {safeArray(dashboardData.expensesByCategory).map((category, index) => (
-              <div key={category.name} className="flex items-center justify-between">
+            {safeArray(Object.entries(dashboardData.expensesByCategory || {})).map(([name, value]) => (
+              <div key={name} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div 
                     className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index] }}
+                    style={{ backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][Object.keys(dashboardData.expensesByCategory || {}).indexOf(name) % 5] }}
                   ></div>
-                  <span className="text-sm font-medium">{category.name}</span>
+                  <span className="text-sm font-medium">{name}</span>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-semibold">${safeToLocaleString(category.amount)}</div>
-                  <div className="text-xs text-gray-500">{safeToLocaleString(category.value)}%</div>
+                  <div className="text-sm font-semibold">${safeToLocaleString(value)}</div>
+                  <div className="text-xs text-gray-500">{safeToLocaleString(value / dashboardData.totalExpenses * 100)}%</div>
                 </div>
               </div>
             ))}
@@ -729,9 +751,9 @@ const AdminDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Expense Categories</h3>
           <div className="space-y-3">
-            {safeArray(dashboardData.expensesByCategory).map((category) => (
-              <div key={category.name} className="flex items-center justify-between p-2 border border-gray-200 rounded">
-                <span className="text-sm font-medium">{category.name}</span>
+            {safeArray(Object.entries(dashboardData.expensesByCategory || {})).map(([name, value]) => (
+              <div key={name} className="flex items-center justify-between p-2 border border-gray-200 rounded">
+                <span className="text-sm font-medium">{name}</span>
                 <div className="flex gap-2">
                   <button className="text-blue-600 hover:text-blue-800">
                     <Edit className="h-4 w-4" />

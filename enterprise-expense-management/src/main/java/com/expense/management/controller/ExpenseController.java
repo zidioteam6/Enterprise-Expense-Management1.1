@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 // PDF generation imports
 import com.itextpdf.text.Document;
@@ -88,6 +89,17 @@ public class ExpenseController {
             expense.setApprovalStatus(ExpenseStatus.APPROVED);
         } else {
             expense.setApprovalStatus(ExpenseStatus.PENDING);
+        }
+
+        // Set approval level for 3-level approval workflow (only for expenses that need approval)
+        if (amount > 100.0) {
+            if (amount < 3000) {
+                expense.setApprovalLevel(ApprovalLevel.MANAGER);
+            } else if (amount < 20000) {
+                expense.setApprovalLevel(ApprovalLevel.FINANCE);
+            } else {
+                expense.setApprovalLevel(ApprovalLevel.ADMIN);
+            }
         }
 
         expense.setComments(comments);
@@ -369,7 +381,80 @@ public class ExpenseController {
         return new ResponseEntity<>("failed!", HttpStatus.OK);
     }
 
-    ///////////////////////////////////
+    // Reject expense by ID
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<?> rejectExpense(@PathVariable Long id) {
+        boolean bol = expenseService.reject(id);
+        System.out.println(bol);
+        if (bol) {
+            return new ResponseEntity<>("rejected!", HttpStatus.OK);
+        }
+
+        return new ResponseEntity<>("failed!", HttpStatus.OK);
+    }
+
+    // Role-specific endpoints for 3-level approval workflow
+    
+    // Get expenses pending manager approval
+    @GetMapping("/pending/manager")
+    public ResponseEntity<?> getExpensesPendingManagerApproval() {
+        List<Expense> expenses = expenseService.getExpensesPendingManagerApproval();
+        return ResponseEntity.ok(createCleanExpenseList(expenses));
+    }
+
+    // Get expenses pending finance approval (approved by manager)
+    @GetMapping("/pending/finance")
+    public ResponseEntity<?> getExpensesPendingFinanceApproval() {
+        List<Expense> expenses = expenseService.getExpensesPendingFinanceApproval();
+        return ResponseEntity.ok(createCleanExpenseList(expenses));
+    }
+
+    // Get expenses pending admin approval (approved by finance)
+    @GetMapping("/pending/admin")
+    public ResponseEntity<?> getExpensesPendingAdminApproval() {
+        List<Expense> expenses = expenseService.getExpensesPendingAdminApproval();
+        return ResponseEntity.ok(createCleanExpenseList(expenses));
+    }
+
+    // Get fully approved expenses (for employee dashboard)
+    @GetMapping("/approved")
+    public ResponseEntity<?> getFullyApprovedExpenses() {
+        List<Expense> expenses = expenseService.getFullyApprovedExpenses();
+        return ResponseEntity.ok(createCleanExpenseList(expenses));
+    }
+
+    // Helper method to create clean expense list without circular references
+    private List<Map<String, Object>> createCleanExpenseList(List<Expense> expenses) {
+        return expenses.stream()
+                .map(expense -> {
+                    Map<String, Object> cleanExpense = new HashMap<>();
+                    cleanExpense.put("id", expense.getId());
+                    cleanExpense.put("amount", expense.getAmount());
+                    cleanExpense.put("category", expense.getCategory());
+                    cleanExpense.put("description", expense.getDescription());
+                    cleanExpense.put("date", expense.getDate());
+                    cleanExpense.put("approvalStatus", expense.getApprovalStatus());
+                    cleanExpense.put("approvalLevel", expense.getApprovalLevel());
+                    cleanExpense.put("priority", expense.getPriority());
+                    cleanExpense.put("comments", expense.getComments());
+                    cleanExpense.put("attachmentType", expense.getAttachmentType());
+                    cleanExpense.put("receiptUrl", expense.getReceiptUrl());
+
+                    // Add user information without circular reference
+                    if (expense.getUser() != null) {
+                        Map<String, Object> userInfo = new HashMap<>();
+                        userInfo.put("id", expense.getUser().getId());
+                        userInfo.put("email", expense.getUser().getEmail());
+                        userInfo.put("fullName", expense.getUser().getFullName());
+                        userInfo.put("role",
+                                expense.getUser().getRole() != null ? expense.getUser().getRole().getName() : null);
+                        cleanExpense.put("user", userInfo);
+                    }
+
+                    return cleanExpense;
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
 
     @GetMapping("/export/{format}")
     public ResponseEntity<byte[]> exportExpenses(@PathVariable String format) {
@@ -382,6 +467,11 @@ public class ExpenseController {
             }
             // Get user's expenses
             List<Expense> userExpenses = expenseService.getAllByUser(user);
+            // Only include PENDING, APPROVED, or REJECTED
+            userExpenses = userExpenses.stream()
+                .filter(e -> Arrays.asList(ExpenseStatus.PENDING, ExpenseStatus.APPROVED, ExpenseStatus.REJECTED)
+                    .contains(e.getApprovalStatus()))
+                .collect(Collectors.toList());
 
             if (format.equalsIgnoreCase("pdf")) {
                 byte[] pdfBytes = generatePdfReport(userExpenses);
@@ -554,6 +644,17 @@ public class ExpenseController {
                 expense.setApprovalStatus(ExpenseStatus.APPROVED);
             } else {
                 expense.setApprovalStatus(ExpenseStatus.PENDING);
+            }
+
+            // Set approval level for 3-level approval workflow (only for expenses that need approval)
+            if (amount > AUTO_APPROVAL_THRESHOLD) {
+                if (amount < 3000) {
+                    expense.setApprovalLevel(ApprovalLevel.MANAGER);
+                } else if (amount < 20000) {
+                    expense.setApprovalLevel(ApprovalLevel.FINANCE);
+                } else {
+                    expense.setApprovalLevel(ApprovalLevel.ADMIN);
+                }
             }
 
             // Update other fields
