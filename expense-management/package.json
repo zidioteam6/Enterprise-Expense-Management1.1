@@ -20,6 +20,8 @@
     "axios": "^1.6.7",
     "chart.js": "^4.4.1",
     "css-select": "^4.2.1",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.330.0",
     "nth-check": "^2.0.1",
     "react": "^18.2.0",

@@ -6,6 +6,7 @@ import com.expense.management.model.User;
 import com.expense.management.repository.ExpenseRepository;
 import com.expense.management.repository.UserRepository;
 import com.expense.management.services.DashboardService;
+import com.expense.management.services.ExpenseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,6 +32,9 @@ public class EmployeeDashboardController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private ExpenseService expenseService;
+
     @GetMapping
     public ResponseEntity<DashboardDTO> getEmployeeDashboard() {
         // Get current user email
@@ -39,11 +43,13 @@ public class EmployeeDashboardController {
         if (user == null) {
             return ResponseEntity.badRequest().build();
         }
-        // Get only this user's expenses
-        List<Expense> userExpenses = expenseRepository.findAll().stream()
-                .filter(e -> e.getUser() != null && e.getUser().getId().equals(user.getId()))
+        
+        // Get only this user's fully approved expenses
+        List<Expense> userApprovedExpenses = expenseService.getAllByUser(user).stream()
+                .filter(e -> e.getApprovalStatus().toString().equals("APPROVED"))
                 .collect(Collectors.toList());
-        DashboardDTO dashboard = dashboardService.getDashboardData(userExpenses);
+        
+        DashboardDTO dashboard = dashboardService.getDashboardData(userApprovedExpenses);
         return ResponseEntity.ok(dashboard);
     }
 
@@ -54,9 +60,12 @@ public class EmployeeDashboardController {
         if (user == null) {
             return ResponseEntity.badRequest().build();
         }
-        List<Expense> userExpenses = expenseRepository.findAll().stream()
-                .filter(e -> e.getUser() != null && e.getUser().getId().equals(user.getId()))
+        
+        // Get only this user's fully approved expenses
+        List<Expense> userApprovedExpenses = expenseService.getAllByUser(user).stream()
+                .filter(e -> e.getApprovalStatus().toString().equals("APPROVED"))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(userExpenses);
+        
+        return ResponseEntity.ok(userApprovedExpenses);
     }
 } 

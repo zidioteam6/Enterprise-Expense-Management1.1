@@ -7,7 +7,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.expense.management.model.Expense;
+import com.expense.management.model.ExpenseStatus;
 import com.expense.management.model.User;
+import com.expense.management.enums.ApprovalLevel;
 
 import java.util.List;
 
@@ -27,5 +29,10 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
     );
 
     List<Expense> findByUser(User user);
+    
+    // Methods for 3-level approval workflow
+    List<Expense> findByApprovalLevelAndApprovalStatus(ApprovalLevel approvalLevel, ExpenseStatus approvalStatus);
+    
+    List<Expense> findByApprovalStatus(ExpenseStatus approvalStatus);
 
 }

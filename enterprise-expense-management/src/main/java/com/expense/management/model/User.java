@@ -59,34 +59,34 @@ public class User {
     private String profileImageType;
 
     // // Getters and Setters for all fields
-    // public Long getId() { return id; }
-    // public void setId(Long id) { this.id = id; }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    // public String getEmail() { return email; }
-    // public void setEmail(String email) { this.email = email; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    // public String getPassword() { return password; }
-    // public void setPassword(String password) { this.password = password; }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
 
-    // public List<Expense> getExpenses() { return expenses; }
-    // public void setExpenses(List<Expense> expenses) { this.expenses = expenses; }
+    public List<Expense> getExpenses() { return expenses; }
+    public void setExpenses(List<Expense> expenses) { this.expenses = expenses; }
 
-    // public String getFullName() { return fullName; }
-    // public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
 
-    // public Role getRole() { return role; }
-    // public void setRole(Role role) { this.role = role; }
+    public Role getRole() { return role; }
+    public void setRole(Role role) { this.role = role; }
 
-    // public LocalDateTime getCreatedAt() { return createdAt; }
-    // public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    // public LocalDateTime getUpdatedAt() { return updatedAt; }
-    // public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
-    // public byte[] getProfileImage() { return profileImage; }
-    // public void setProfileImage(byte[] profileImage) { this.profileImage = profileImage; }
+    public byte[] getProfileImage() { return profileImage; }
+    public void setProfileImage(byte[] profileImage) { this.profileImage = profileImage; }
 
-    // public String getProfileImageType() { return profileImageType; }
-    // public void setProfileImageType(String profileImageType) { this.profileImageType = profileImageType; }
+    public String getProfileImageType() { return profileImageType; }
+    public void setProfileImageType(String profileImageType) { this.profileImageType = profileImageType; }
 
 }
