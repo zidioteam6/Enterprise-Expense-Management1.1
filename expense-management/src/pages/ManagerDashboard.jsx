@@ -328,7 +328,7 @@ const ManagerDashboard = () => {
     return (
       <div className="space-y-6">
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
             <div className="flex items-center justify-between">
               <div>
@@ -356,22 +356,13 @@ const ManagerDashboard = () => {
               <Clock className="h-8 w-8 text-yellow-500" />
             </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Monthly Spend</p>
-                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.monthlyExpenses ? Object.values(dashboardData.monthlyExpenses).reduce((sum, val) => sum + val, 0) : 0)}</p>
+                <p className="text-sm font-medium text-gray-600">Rejected Expenses</p>
+                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.rejectedExpenses)}</p>
               </div>
-              <DollarSign className="h-8 w-8 text-purple-500" />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-400">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Approved by Manager This Month</p>
-                <p className="text-2xl font-bold text-green-700">{safeToLocaleString(approvedByManagerThisMonth)}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-400" />
+              <XCircle className="h-8 w-8 text-red-500" />
             </div>
           </div>
         </div>
@@ -445,52 +436,63 @@ const ManagerDashboard = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {expenses.slice(0, 5).map((expense) => (
-                  <tr key={expense.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {expense.user ? (expense.user.fullName || `User ${expense.user.id}`) : 'Unknown User'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
-                        {expense.approvalStatus}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        {expense.approvalStatus === 'PENDING' &&(
-                          <>
-                            <button 
-                              onClick={() => handleExpenseAction('approve', expense)}
-                              className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                              title="Approve"
-                            >
-                              <Check className="h-4 w-4" />
-                              Approve
-                            </button>
-                            <button 
-                              onClick={() => handleExpenseAction('reject', expense)}
-                              className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                              title="Reject"
-                            >
-                              <X className="h-4 w-4" />
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        <button 
-                          onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('view'); }}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="View Details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </div>
+                {expenses.filter(e => e.approvalStatus === 'PENDING').length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-gray-500 text-lg">
+                      No pending expenses.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  expenses
+                    .filter(e => e.approvalStatus === 'PENDING')
+                    .slice(0, 5)
+                    .map((expense) => (
+                      <tr key={expense.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {expense.user ? (expense.user.fullName || `User ${expense.user.id}`) : 'Unknown User'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}> 
+                            {expense.approvalStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            {expense.approvalStatus === 'PENDING' &&(
+                              <>
+                                <button 
+                                  onClick={() => handleExpenseAction('approve', expense)}
+                                  className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                                  title="Approve"
+                                >
+                                  <Check className="h-4 w-4" />
+                                  Approve
+                                </button>
+                                <button 
+                                  onClick={() => handleExpenseAction('reject', expense)}
+                                  className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                                  title="Reject"
+                                >
+                                  <X className="h-4 w-4" />
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            <button 
+                              onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('view'); }}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
               </tbody>
             </table>
           </div>
@@ -560,11 +562,7 @@ const ManagerDashboard = () => {
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
           <h3 className="text-lg font-semibold">All Expenses - Approval Required</h3>
-          <p className="text-sm text-gray-600 mt-2">
-            Total expenses: {expenses.length} | Pending: {expenses.filter(e => e.approvalStatus === 'PENDING').length} | 
-            Approved: {expenses.filter(e => e.approvalStatus === 'APPROVED').length} | 
-            Rejected: {expenses.filter(e => e.approvalStatus === 'REJECTED').length}
-          </p>
+
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
@@ -812,62 +810,6 @@ const ManagerDashboard = () => {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Report Generation (Custom Reports) */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Generate Custom Reports</h3>
-          <div className="flex items-center gap-2 mb-2">
-            <label htmlFor="month-select" className="text-sm">Month:</label>
-            <select
-              id="month-select"
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(Number(e.target.value))}
-              className="border rounded px-2 py-1"
-            >
-              {[...Array(12)].map((_, i) => (
-                <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('default', { month: 'long' })}</option>
-              ))}
-            </select>
-            <label htmlFor="year-select" className="text-sm">Year:</label>
-            <select
-              id="year-select"
-              value={selectedYear}
-              onChange={e => setSelectedYear(Number(e.target.value))}
-              className="border rounded px-2 py-1"
-            >
-              {[...Array(5)].map((_, i) => {
-                const year = new Date().getFullYear() - i;
-                return <option key={year} value={year}>{year}</option>;
-              })}
-            </select>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={() => addNotification('Detailed monthly report export not implemented in frontend', 'info')}
-              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
-            >
-              <FileText className="h-6 w-6 text-blue-500 mb-2" />
-              <h4 className="font-medium">Detailed Monthly Report</h4>
-              <p className="text-sm text-gray-500">Comprehensive overview of monthly expenses</p>
-            </button>
-            <button
-              onClick={() => addNotification('Category spending report export not implemented in frontend', 'info')}
-              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
-            >
-              <PieChart className="h-6 w-6 text-green-500 mb-2" />
-              <h4 className="font-medium">Category Spending Report</h4>
-              <p className="text-sm text-gray-500">In-depth analysis by expense category</p>
-            </button>
-            <button
-              onClick={() => addNotification('Yearly trend report export not implemented in frontend', 'info')}
-              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
-            >
-              <BarChart3 className="h-6 w-6 text-purple-500 mb-2" />
-              <h4 className="font-medium">Yearly Trend Report</h4>
-              <p className="text-sm text-gray-500">Visualize expense trends over the year</p>
-            </button>
           </div>
         </div>
       </div>
