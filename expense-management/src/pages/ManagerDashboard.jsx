@@ -44,6 +44,7 @@ const ManagerDashboard = () => {
   const [budget, setBudget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [approvedByManagerExpenses, setApprovedByManagerExpenses] = useState([]);
 
   const { logout, user } = useAuth();
   const { addNotification } = useNotification();
@@ -58,77 +59,75 @@ const ManagerDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Dashboard stats
-        const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        console.log('Dashboard data:', dashboardRes.data);
-        setDashboardData(dashboardRes.data);
-        
-        // Get expenses pending manager approval only
-        const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/manager`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        console.log('Manager pending expenses data:', expensesRes.data);
-        console.log('Type of expenses data:', typeof expensesRes.data);
-        console.log('Is array?', Array.isArray(expensesRes.data));
-        
-        // Handle different response formats
-        let expensesData = expensesRes.data;
-        
-        // If it's a string, try to parse it (handles circular references)
-        if (typeof expensesData === 'string') {
-          try {
-            expensesData = JSON.parse(expensesData);
-          } catch (parseError) {
-            console.error('Failed to parse expenses data:', parseError);
-            expensesData = [];
-          }
+  // Move fetchData outside useEffect so it can be called elsewhere
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Dashboard stats
+      const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
         }
-        
-        // If it's already an array, use it directly
-        if (Array.isArray(expensesData)) {
-          // Clean the data to remove circular references
-          expensesData = expensesData.map(expense => ({
-            ...expense,
-            user: expense.user ? {
-              id: expense.user.id,
-              email: expense.user.email,
-              fullName: expense.user.fullName
-            } : null
-          }));
-        } else {
-          expensesData = [];
+      });
+      setDashboardData(dashboardRes.data);
+      // Get expenses pending manager approval only
+      const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/manager`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
         }
-        
-        console.log('Processed manager pending expenses data:', expensesData);
-        console.log('Number of expenses pending manager approval:', expensesData.length);
-        setExpenses(expensesData);
-        
-        // Budget
-        const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        console.log('Budget data:', budgetRes.data);
-        setBudget(budgetRes.data.budget);
-      } catch (err) {
-        console.error('Manager dashboard fetch error:', err);
-        setError(err?.response?.data?.message || err.message || 'Failed to load manager dashboard data.');
-      } finally {
-        setLoading(false);
+      });
+      let expensesData = expensesRes.data;
+      if (typeof expensesData === 'string') {
+        try { expensesData = JSON.parse(expensesData); } catch { expensesData = []; }
       }
-    };
+      if (Array.isArray(expensesData)) {
+        expensesData = expensesData.map(expense => ({
+          ...expense,
+          user: expense.user ? {
+            id: expense.user.id,
+            email: expense.user.email,
+            fullName: expense.user.fullName
+          } : null
+        }));
+      } else { expensesData = []; }
+      setExpenses(expensesData);
+      // Fetch expenses approved by manager (now pending finance)
+      const approvedRes = await axios.get(`${API_BASE}/api/expenses/pending/finance`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      let approvedData = approvedRes.data;
+      if (typeof approvedData === 'string') {
+        try { approvedData = JSON.parse(approvedData); } catch { approvedData = []; }
+      }
+      if (Array.isArray(approvedData)) {
+        approvedData = approvedData.map(expense => ({
+          ...expense,
+          user: expense.user ? {
+            id: expense.user.id,
+            email: expense.user.email,
+            fullName: expense.user.fullName
+          } : null
+        }));
+      } else { approvedData = []; }
+      setApprovedByManagerExpenses(approvedData);
+      // Budget
+      const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      setBudget(budgetRes.data.budget);
+    } catch (err) {
+      setError(err?.response?.data?.message || err.message || 'Failed to load manager dashboard data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -156,7 +155,6 @@ const ManagerDashboard = () => {
     try {
       let endpoint = '';
       let method = 'PUT';
-
       switch (action) {
         case 'approve':
           endpoint = `${API_BASE}/api/expenses/${expense.id}/approve`;
@@ -167,7 +165,6 @@ const ManagerDashboard = () => {
         default:
           return;
       }
-
       const response = await axios({
         method,
         url: endpoint,
@@ -175,14 +172,8 @@ const ManagerDashboard = () => {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-
-      // Update the expenses list
-      setExpenses(expenses.map(e => 
-        e.id === expense.id 
-          ? { ...e, approvalStatus: action === 'approve' ? 'APPROVED' : 'REJECTED' }
-          : e
-      ));
-
+      // Refresh all data after approve/reject
+      await fetchData();
       console.log(`Expense ${action} successfully:`, response.data);
     } catch (error) {
       console.error(`Error ${action}ing expense:`, error);
@@ -267,10 +258,16 @@ const ManagerDashboard = () => {
     }
   };
 
+  // Add this helper above renderOverview
+  const approvedByManagerThisMonth = approvedByManagerExpenses.filter(e =>
+    new Date(e.date).getMonth() === new Date().getMonth() &&
+    new Date(e.date).getFullYear() === new Date().getFullYear()
+  ).length;
+
   const renderOverview = () => (
     <div className="space-y-6">
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
             <div>
@@ -305,6 +302,15 @@ const ManagerDashboard = () => {
               <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.monthlyExpenses ? Object.values(dashboardData.monthlyExpenses).reduce((sum, val) => sum + val, 0) : 0)}</p>
             </div>
             <DollarSign className="h-8 w-8 text-purple-500" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-400">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Approved by Manager This Month</p>
+              <p className="text-2xl font-bold text-green-700">{safeToLocaleString(approvedByManagerThisMonth)}</p>
+            </div>
+            <CheckCircle className="h-8 w-8 text-green-400" />
           </div>
         </div>
       </div>
