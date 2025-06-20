@@ -381,7 +381,7 @@ const Dashboard = () => {
                                   const currentExpenses = Array.isArray(prev) ? prev : [];
                                   return currentExpenses.filter(e => e.id !== expense.id);
                                 });
-                                // Refresh dashboard data to update analytics
+                                // Refresh dashboard data to update analytics//test
                                 refreshDashboardData();
                                 addNotification('Expense deleted successfully!', 'success');
                               } catch (err) {
