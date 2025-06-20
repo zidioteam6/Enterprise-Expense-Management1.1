@@ -36,10 +36,11 @@ public class ExpenseService {
 		return expenseRepository.save(expense);
 	}
 
-	public boolean approve(long id) {
+	public boolean approve(long id, Long managerId) {
 		Expense expense = expenseRepository.findById(id).orElseThrow(() -> new RuntimeException("expense not found!"));
 		if (expense.getApprovalLevel() == ApprovalLevel.MANAGER) {
 			expense.setApprovalLevel(ApprovalLevel.FINANCE);
+			expense.setApprovedByManagerId(managerId);
 			expenseRepository.save(expense);
 			return true;
 		} else if (expense.getApprovalLevel() == ApprovalLevel.FINANCE) {
@@ -57,8 +58,14 @@ public class ExpenseService {
 	/**
 	 * Reject expense - sets status to REJECTED
 	 */
-	public boolean reject(long id) {
+	public boolean reject(long id, Long managerId) {
 		Expense expense = expenseRepository.findById(id).orElseThrow(() -> new RuntimeException("expense not found!"));
+		if (expense.getApprovalLevel() == ApprovalLevel.MANAGER) {
+			expense.setApprovalStatus(ExpenseStatus.REJECTED);
+			expense.setApprovedByManagerId(managerId);
+			expenseRepository.save(expense);
+			return true;
+		}
 		expense.setApprovalStatus(ExpenseStatus.REJECTED);
 		expenseRepository.save(expense);
 		return true;

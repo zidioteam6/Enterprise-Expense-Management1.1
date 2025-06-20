@@ -72,6 +72,9 @@ public class Expense {
 	@JsonIgnore
 	User user;
 
+	@Column(name = "approved_by_manager_id")
+	private Long approvedByManagerId;
+
 	// // Getters and Setters for all fields
 	public Long getId() { return id; }
 	public void setId(Long id) { this.id = id; }
@@ -117,5 +120,7 @@ public class Expense {
         this.receiptUrl = receiptUrl;
     }
 	
+	public Long getApprovedByManagerId() { return approvedByManagerId; }
+	public void setApprovedByManagerId(Long approvedByManagerId) { this.approvedByManagerId = approvedByManagerId; }
 	
 }

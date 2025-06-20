@@ -37,6 +37,7 @@ const FinanceDashboard = () => {
   const [budget, setBudget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [processedByFinanceExpenses, setProcessedByFinanceExpenses] = useState([]);
 
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -96,6 +97,28 @@ const FinanceDashboard = () => {
         console.log('Processed finance pending expenses data:', expensesData);
         console.log('Number of expenses pending finance approval:', expensesData.length);
         setExpenses(expensesData);
+        
+        // Fetch processed by finance (new endpoint)
+        const processedRes = await axios.get(`${API_BASE}/api/expenses/processed/finance`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        let processedData = processedRes.data;
+        if (typeof processedData === 'string') {
+          try { processedData = JSON.parse(processedData); } catch { processedData = []; }
+        }
+        if (Array.isArray(processedData)) {
+          processedData = processedData.map(expense => ({
+            ...expense,
+            user: expense.user ? {
+              id: expense.user.id,
+              email: expense.user.email,
+              fullName: expense.user.fullName
+            } : null
+          }));
+        } else { processedData = []; }
+        setProcessedByFinanceExpenses(processedData);
         
         // Budget
         const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, {
@@ -471,6 +494,68 @@ const FinanceDashboard = () => {
                       </td>
                     </tr>
                   ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Processed Expenses Table */}
+      <div className="bg-white rounded-lg shadow mt-8">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">Processed Expenses (Approved/Rejected by You)</h3>
+          <p className="text-sm text-gray-600 mt-2">
+            These are expenses you have already approved or rejected. You can track their progress through the workflow.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {processedByFinanceExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                    No processed expenses found.
+                  </td>
+                </tr>
+              ) : (
+                processedByFinanceExpenses.map((expense) => {
+                  let statusLabel = '';
+                  if (expense.approvalStatus === 'PENDING' && expense.approvalLevel === 'ADMIN') {
+                    statusLabel = 'Admin Approval Pending';
+                  } else if (expense.approvalStatus === 'APPROVED') {
+                    statusLabel = 'Fully Approved';
+                  } else if (expense.approvalStatus === 'REJECTED') {
+                    statusLabel = 'Rejected';
+                  } else {
+                    statusLabel = expense.approvalStatus;
+                  }
+                  return (
+                    <tr key={expense.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                          {statusLabel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

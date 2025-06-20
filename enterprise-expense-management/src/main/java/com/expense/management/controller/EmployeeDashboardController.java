@@ -44,12 +44,9 @@ public class EmployeeDashboardController {
             return ResponseEntity.badRequest().build();
         }
         
-        // Get only this user's fully approved expenses
-        List<Expense> userApprovedExpenses = expenseService.getAllByUser(user).stream()
-                .filter(e -> e.getApprovalStatus().toString().equals("APPROVED"))
-                .collect(Collectors.toList());
-        
-        DashboardDTO dashboard = dashboardService.getDashboardData(userApprovedExpenses);
+        // Get all this user's expenses (not just approved)
+        List<Expense> userExpenses = expenseService.getAllByUser(user);
+        DashboardDTO dashboard = dashboardService.getDashboardData(userExpenses);
         return ResponseEntity.ok(dashboard);
     }
 

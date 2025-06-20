@@ -35,4 +35,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
     
     List<Expense> findByApprovalStatus(ExpenseStatus approvalStatus);
 
+    // Find all expenses processed by a specific manager
+    List<Expense> findByApprovedByManagerId(Long managerId);
+
 }

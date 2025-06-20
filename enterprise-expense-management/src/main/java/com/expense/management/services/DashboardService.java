@@ -114,10 +114,18 @@ public class DashboardService {
 
     private Map<String, Double> calculateMonthlyExpenses(List<Expense> expenses) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM");
-        return expenses.stream()
-                .collect(Collectors.groupingBy(
-                        e -> e.getDate().format(formatter),
-                        Collectors.summingDouble(Expense::getAmount)));
+        Map<String, Double> monthly = expenses.stream()
+            .collect(Collectors.groupingBy(
+                e -> e.getDate().format(formatter),
+                Collectors.summingDouble(Expense::getAmount)));
+
+        // Ensure all 12 months for the relevant year are present
+        int year = expenses.isEmpty() ? LocalDate.now().getYear() : expenses.get(0).getDate().getYear();
+        for (int m = 1; m <= 12; m++) {
+            String key = String.format("%d-%02d", year, m);
+            monthly.putIfAbsent(key, 0.0);
+        }
+        return monthly;
     }
 
     private Map<String, Integer> calculateStatusCounts(List<Expense> expenses) {

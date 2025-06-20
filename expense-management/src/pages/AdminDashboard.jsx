@@ -54,6 +54,7 @@ const AdminDashboard = () => {
   const [budget, setBudget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [processedByAdminExpenses, setProcessedByAdminExpenses] = useState([]);
 
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -90,6 +91,33 @@ const AdminDashboard = () => {
         const usersRes = await axios.get(`${API_BASE}/api/auth/users`, authHeader);
         console.log('Users data:', usersRes.data);
         setUsers(usersRes.data);
+
+        // Fetch processed by admin (fully approved and rejected)
+        const approvedRes = await axios.get(`${API_BASE}/api/expenses/approved`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        let approvedData = approvedRes.data;
+        if (typeof approvedData === 'string') {
+          try { approvedData = JSON.parse(approvedData); } catch { approvedData = []; }
+        }
+        if (!Array.isArray(approvedData)) approvedData = [];
+        // Optionally, fetch rejected as well if you have a rejected endpoint
+        // const rejectedRes = await axios.get(`${API_BASE}/api/expenses/rejected`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        // let rejectedData = rejectedRes.data;
+        // if (typeof rejectedData === 'string') { try { rejectedData = JSON.parse(rejectedData); } catch { rejectedData = []; } }
+        // if (!Array.isArray(rejectedData)) rejectedData = [];
+        // const processedData = [...approvedData, ...rejectedData];
+        const processedData = approvedData.map(expense => ({
+          ...expense,
+          user: expense.user ? {
+            id: expense.user.id,
+            email: expense.user.email,
+            fullName: expense.user.fullName
+          } : null
+        }));
+        setProcessedByAdminExpenses(processedData);
       } catch (err) {
         console.error('Admin dashboard fetch error:', err);
         setError(err?.response?.data?.message || err.message || 'Failed to load admin dashboard data.');
@@ -220,8 +248,8 @@ const AdminDashboard = () => {
       // Refetch the pending admin expenses after action
       const token = localStorage.getItem('token');
       const expensesRes = await api.get('/expenses/pending/admin', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+            headers: { Authorization: `Bearer ${token}` }
+          });
       setExpenses(expensesRes.data);
     } catch (error) {
       console.error('Error handling expense action:', error);
@@ -368,14 +396,14 @@ const AdminDashboard = () => {
                 </tr>
               ) : (
                 expenses.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-gray-50">
+                <tr key={expense.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -397,8 +425,8 @@ const AdminDashboard = () => {
                           Reject
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                  </td>
+                </tr>
                 ))
               )}
             </tbody>
@@ -456,6 +484,7 @@ const AdminDashboard = () => {
                     >
                       <option value="ROLE_EMPLOYEE">Employee</option>
                       <option value="ROLE_MANAGER">Manager</option>
+                      <option value="ROLE_FINANCE">Finance</option>
                       <option value="ROLE_ADMIN">Admin</option>
                     </select>
                   </td>
@@ -557,38 +586,98 @@ const AdminDashboard = () => {
                 </tr>
               ) : (
                 expenses.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-gray-50">
+                <tr key={expense.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => handleExpenseAction('approve', expense)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex space-x-2">
+                          <button 
+                            onClick={() => handleExpenseAction('approve', expense)}
                           className="text-green-600 hover:text-green-900 flex items-center gap-1"
                           title="Approve"
-                        >
-                          <CheckCircle className="h-4 w-4" />
+                          >
+                            <CheckCircle className="h-4 w-4" />
                           Approve
-                        </button>
-                        <button 
-                          onClick={() => handleExpenseAction('reject', expense)}
+                          </button>
+                          <button 
+                            onClick={() => handleExpenseAction('reject', expense)}
                           className="text-red-600 hover:text-red-900 flex items-center gap-1"
                           title="Reject"
-                        >
-                          <XCircle className="h-4 w-4" />
+                          >
+                            <XCircle className="h-4 w-4" />
                           Reject
-                        </button>
+                          </button>
                       </div>
                     </td>
                   </tr>
                 ))
+                      )}
+            </tbody>
+          </table>
+                    </div>
+      </div>
+
+      {/* Processed Expenses Table */}
+      <div className="bg-white rounded-lg shadow mt-8">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">Processed Expenses (Approved/Rejected by You)</h3>
+          <p className="text-sm text-gray-600 mt-2">
+            These are expenses you have already approved or rejected. You can track their progress through the workflow.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {processedByAdminExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                    No processed expenses found.
+                  </td>
+                </tr>
+              ) : (
+                processedByAdminExpenses.map((expense) => {
+                  let statusLabel = '';
+                  if (expense.approvalStatus === 'APPROVED') {
+                    statusLabel = 'Fully Approved';
+                  } else if (expense.approvalStatus === 'REJECTED') {
+                    statusLabel = 'Rejected';
+                  } else {
+                    statusLabel = expense.approvalStatus;
+                  }
+                  return (
+                    <tr key={expense.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                          {statusLabel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -981,6 +1070,7 @@ const AdminDashboard = () => {
                 <select className="w-full p-2 border border-gray-300 rounded-lg">
                   <option value="Employee">Employee</option>
                   <option value="Manager">Manager</option>
+                  <option value="Finance">Finance</option>
                   <option value="Admin">Admin</option>
                 </select>
               </div>

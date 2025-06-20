@@ -45,6 +45,7 @@ const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [approvedByManagerExpenses, setApprovedByManagerExpenses] = useState([]);
+  const [processedByManagerExpenses, setProcessedByManagerExpenses] = useState([]);
 
   const { logout, user } = useAuth();
   const { addNotification } = useNotification();
@@ -58,6 +59,44 @@ const ManagerDashboard = () => {
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const [selectedExpense, setSelectedExpense] = useState(null);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseModalMode, setExpenseModalMode] = useState('view');
+
+  // --- Overview Tab: Year Selector State ---
+  const [overviewYear, setOverviewYear] = useState(new Date().getFullYear());
+
+  // --- Overview Tab: Get available years from monthlyExpenses keys ---
+  const availableOverviewYears = Array.from(
+    new Set(
+      Object.keys((dashboardData && dashboardData.monthlyExpenses) || {})
+        .map((key) => {
+          if (/^\d{4}-\d{2}$/.test(key)) {
+            return Number(key.split('-')[0]);
+          }
+          return null;
+        })
+        .filter((year) => !!year)
+    )
+  ).sort((a, b) => b - a);
+
+  // --- Analytics Tab: Year Selector State ---
+  const [analyticsYear, setAnalyticsYear] = useState(new Date().getFullYear());
+
+  // --- Analytics Tab: Get available years from monthlyExpenses keys ---
+  const availableAnalyticsYears = Array.from(
+    new Set(
+      Object.keys((dashboardData && dashboardData.monthlyExpenses) || {})
+        .map((key) => {
+          if (/^\d{4}-\d{2}$/.test(key)) {
+            return Number(key.split('-')[0]);
+          }
+          return null;
+        })
+        .filter((year) => !!year)
+    )
+  ).sort((a, b) => b - a);
 
   // Move fetchData outside useEffect so it can be called elsewhere
   const fetchData = async () => {
@@ -92,18 +131,18 @@ const ManagerDashboard = () => {
         }));
       } else { expensesData = []; }
       setExpenses(expensesData);
-      // Fetch expenses approved by manager (now pending finance)
-      const approvedRes = await axios.get(`${API_BASE}/api/expenses/pending/finance`, {
+      // Fetch all processed by manager (new endpoint)
+      const processedRes = await axios.get(`${API_BASE}/api/expenses/processed/manager`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-      let approvedData = approvedRes.data;
-      if (typeof approvedData === 'string') {
-        try { approvedData = JSON.parse(approvedData); } catch { approvedData = []; }
+      let processedData = processedRes.data;
+      if (typeof processedData === 'string') {
+        try { processedData = JSON.parse(processedData); } catch { processedData = []; }
       }
-      if (Array.isArray(approvedData)) {
-        approvedData = approvedData.map(expense => ({
+      if (Array.isArray(processedData)) {
+        processedData = processedData.map(expense => ({
           ...expense,
           user: expense.user ? {
             id: expense.user.id,
@@ -111,8 +150,8 @@ const ManagerDashboard = () => {
             fullName: expense.user.fullName
           } : null
         }));
-      } else { approvedData = []; }
-      setApprovedByManagerExpenses(approvedData);
+      } else { processedData = []; }
+      setProcessedByManagerExpenses(processedData);
       // Budget
       const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, {
         headers: {
@@ -264,164 +303,201 @@ const ManagerDashboard = () => {
     new Date(e.date).getFullYear() === new Date().getFullYear()
   ).length;
 
-  const renderOverview = () => (
-    <div className="space-y-6">
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.totalExpenses)}</p>
-            </div>
-            <Receipt className="h-8 w-8 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.approvedExpenses)}</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pending Approval</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.pendingExpenses)}</p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Monthly Spend</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.monthlyExpenses ? Object.values(dashboardData.monthlyExpenses).reduce((sum, val) => sum + val, 0) : 0)}</p>
-            </div>
-            <DollarSign className="h-8 w-8 text-purple-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-400">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Approved by Manager This Month</p>
-              <p className="text-2xl font-bold text-green-700">{safeToLocaleString(approvedByManagerThisMonth)}</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-400" />
-          </div>
-        </div>
-      </div>
+  const renderOverview = () => {
+    // Transform and sort monthlyExpenses object into an array for the chart, filtered by selected year
+    const transformedMonthlyExpenses = Object.entries(dashboardData.monthlyExpenses || {})
+      .map(([monthKey, amount]) => {
+        let year = null;
+        let monthNum = monthKey;
+        if (/^\d{4}-\d{2}$/.test(monthKey)) {
+          const parts = monthKey.split('-');
+          year = Number(parts[0]);
+          monthNum = Number(parts[1]);
+        } else {
+          monthNum = Number(monthKey);
+        }
+        return {
+          year,
+          month: monthNum,
+          amount: safeNumber(amount)
+        };
+      })
+      .filter(entry => entry.year === overviewYear)
+      .sort((a, b) => a.month - b.month);
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={safeArray(Object.entries(dashboardData.monthlyExpenses || {}).map(([month, amount]) => ({ month, amount })))}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-              <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+    return (
+      <div className="space-y-6">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.totalExpenses)}</p>
+              </div>
+              <Receipt className="h-8 w-8 text-blue-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Approved</p>
+                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.approvedExpenses)}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending Approval</p>
+                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.pendingExpenses)}</p>
+              </div>
+              <Clock className="h-8 w-8 text-yellow-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Monthly Spend</p>
+                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.monthlyExpenses ? Object.values(dashboardData.monthlyExpenses).reduce((sum, val) => sum + val, 0) : 0)}</p>
+              </div>
+              <DollarSign className="h-8 w-8 text-purple-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Approved by Manager This Month</p>
+                <p className="text-2xl font-bold text-green-700">{safeToLocaleString(approvedByManagerThisMonth)}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-400" />
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Expenses by Category</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <RechartsPieChart>
-              <Pie
-                data={safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value })))}
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-                label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
-              >
-                {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-            </RechartsPieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
-      {/* Recent Expenses */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Recent Expenses</h3>
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Monthly Expense Trends</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Year:</span>
+                <select
+                  value={overviewYear}
+                  onChange={e => setOverviewYear(Number(e.target.value))}
+                  className="border rounded px-2 py-1"
+                >
+                  {availableOverviewYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={transformedMonthlyExpenses}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
+                <YAxis />
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+                <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-4">Expenses by Category</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <RechartsPieChart>
+                <Pie
+                  data={safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value })))}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                  label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
+                >
+                  {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {expenses.slice(0, 5).map((expense) => (
-                <tr key={expense.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {expense.user ? (expense.user.fullName || `User ${expense.user.id}`) : 'Unknown User'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
-                      {expense.approvalStatus}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      {expense.approvalStatus === 'PENDING' &&(
-                        <>
-                          <button 
-                            onClick={() => handleExpenseAction('approve', expense)}
-                            className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                            title="Approve"
-                          >
-                            <Check className="h-4 w-4" />
-                            Approve
-                          </button>
-                          <button 
-                            onClick={() => handleExpenseAction('reject', expense)}
-                            className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                            title="Reject"
-                          >
-                            <X className="h-4 w-4" />
-                            Reject
-                          </button>
-                        </>
-                      )}
-                      <button 
-                        onClick={() => {/* View details */}}
-                        className="text-blue-600 hover:text-blue-900"
-                        title="View Details"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
+
+        {/* Recent Expenses */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold">Recent Expenses</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {expenses.slice(0, 5).map((expense) => (
+                  <tr key={expense.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {expense.user ? (expense.user.fullName || `User ${expense.user.id}`) : 'Unknown User'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                        {expense.approvalStatus}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        {expense.approvalStatus === 'PENDING' &&(
+                          <>
+                            <button 
+                              onClick={() => handleExpenseAction('approve', expense)}
+                              className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                              title="Approve"
+                            >
+                              <Check className="h-4 w-4" />
+                              Approve
+                            </button>
+                            <button 
+                              onClick={() => handleExpenseAction('reject', expense)}
+                              className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                              title="Reject"
+                            >
+                              <X className="h-4 w-4" />
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        <button 
+                          onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('view'); }}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderExpenseManagement = () => (
     <div className="space-y-6">
@@ -522,7 +598,7 @@ const ManagerDashboard = () => {
                   .map((expense) => (
                     <tr key={expense.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
@@ -556,7 +632,7 @@ const ManagerDashboard = () => {
                             </>
                           )}
                           <button 
-                            onClick={() => {/* View details */}}
+                            onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('view'); }}
                             className="text-blue-600 hover:text-blue-900"
                             title="View Details"
                           >
@@ -571,15 +647,94 @@ const ManagerDashboard = () => {
           </table>
         </div>
       </div>
+
+      {/* Processed Expenses Table */}
+      <div className="bg-white rounded-lg shadow mt-8">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">Processed Expenses (Approved/Rejected by You)</h3>
+          <p className="text-sm text-gray-600 mt-2">
+            These are expenses you have already approved or rejected. You can track their progress through the workflow.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {processedByManagerExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                    No processed expenses found.
+                  </td>
+                </tr>
+              ) : (
+                processedByManagerExpenses.map((expense) => {
+                  let statusLabel = '';
+                  if (expense.approvalStatus === 'PENDING' && expense.approvalLevel === 'FINANCE') {
+                    statusLabel = 'Finance Approval Pending';
+                  } else if (expense.approvalStatus === 'PENDING' && expense.approvalLevel === 'ADMIN') {
+                    statusLabel = 'Admin Approval Pending';
+                  } else if (expense.approvalStatus === 'APPROVED') {
+                    statusLabel = 'Fully Approved';
+                  } else if (expense.approvalStatus === 'REJECTED') {
+                    statusLabel = 'Rejected';
+                  } else {
+                    statusLabel = expense.approvalStatus;
+                  }
+                  return (
+                    <tr key={expense.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                          {statusLabel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 
   const renderAnalytics = () => {
-    // Transform monthlyExpenses object into an array for Recharts
-    const transformedMonthlyExpenses = Object.entries(dashboardData?.monthlyExpenses || {}).map(([month, amount]) => ({
-      month: month,
-      amount: safeNumber(amount)
-    }));
+    // Transform and sort monthlyExpenses for Recharts, filtered by selected year
+    const transformedMonthlyExpenses = Object.entries(dashboardData?.monthlyExpenses || {})
+      .map(([monthKey, amount]) => {
+        let year = null;
+        let monthNum = monthKey;
+        if (/^\d{4}-\d{2}$/.test(monthKey)) {
+          const parts = monthKey.split('-');
+          year = Number(parts[0]);
+          monthNum = Number(parts[1]);
+        } else {
+          monthNum = Number(monthKey);
+        }
+        return {
+          year,
+          month: monthNum,
+          amount: safeNumber(amount)
+        };
+      })
+      .filter(entry => entry.year === analyticsYear)
+      .sort((a, b) => a.month - b.month);
 
     // Transform expensesByCategory object into an array for Recharts
     const transformedExpensesByCategory = Object.entries(dashboardData?.expensesByCategory || {}).map(([categoryName, amount]) => ({
@@ -611,20 +766,34 @@ const ManagerDashboard = () => {
         </div>
 
         {/* Analytics Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-4">Monthly Spending Trend</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold">Monthly Spending Trend</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Year:</span>
+                <select
+                  value={analyticsYear}
+                  onChange={e => setAnalyticsYear(Number(e.target.value))}
+                  className="border rounded px-2 py-1"
+                >
+                  {availableAnalyticsYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={transformedMonthlyExpenses}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
                 <YAxis />
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
                 <Bar dataKey="amount" fill="#3B82F6" />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-1">
             <h3 className="text-lg font-semibold mb-4">Category Breakdown</h3>
             <div className="space-y-4">
               {transformedExpensesByCategory.map((category, index) => (
@@ -843,7 +1012,7 @@ const ManagerDashboard = () => {
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">M</span>
                 </div>
-                <span className="text-sm font-medium text-gray-700">Manager User</span>
+                <span className="text-sm font-medium text-gray-700">Manager</span>
                 <button
                   onClick={() => { logout(); navigate('/login'); }}
                   className="ml-4 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
@@ -923,6 +1092,55 @@ const ManagerDashboard = () => {
                 <button onClick={() => { setFilterCategory(''); setFilterStatus(''); setFilterStartDate(''); setFilterEndDate(''); }} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">Clear</button>
                 <button onClick={() => setShowFilterModal(false)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Apply</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expense Modal for viewing details */}
+      {showExpenseModal && selectedExpense && expenseModalMode === 'view' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Expense Details</h2>
+              <button
+                onClick={() => { setShowExpenseModal(false); setSelectedExpense(null); }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="font-medium">${selectedExpense.amount}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Category</p>
+                  <p className="font-medium">{selectedExpense.category}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Date</p>
+                  <p className="font-medium">{new Date(selectedExpense.date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Status</p>
+                  <p className={`font-medium ${getStatusColor(selectedExpense.approvalStatus)}`}>{selectedExpense.approvalStatus}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Description</p>
+                <p className="font-medium">{selectedExpense.description}</p>
+              </div>
+              {selectedExpense.receiptUrl && (
+                <div>
+                  <p className="text-sm text-gray-600">Receipt</p>
+                  <div className="mt-2">
+                    <a href={selectedExpense.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View Receipt</a>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

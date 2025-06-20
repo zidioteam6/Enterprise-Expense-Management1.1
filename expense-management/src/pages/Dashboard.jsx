@@ -52,6 +52,12 @@ const Dashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
+  // --- Analytics Tab: Year Selector State ---
+  const [analyticsYear, setAnalyticsYear] = useState(new Date().getFullYear());
+
+  // --- Overview Tab: Year Selector State ---
+  const [overviewYear, setOverviewYear] = useState(new Date().getFullYear());
+
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { notifications, addNotification, removeNotification, clearNotifications } = useNotification();
@@ -172,95 +178,139 @@ const Dashboard = () => {
     setShowExpenseModal(false);
   };
 
+  // --- Overview Tab: Get available years from monthlyExpenses keys ---
+  const availableOverviewYears = Array.from(
+    new Set(
+      Object.keys(dashboard.monthlyExpenses || {})
+        .map((key) => {
+          if (/^\d{4}-\d{2}$/.test(key)) {
+            return Number(key.split('-')[0]);
+          }
+          return null;
+        })
+        .filter((year) => !!year)
+    )
+  ).sort((a, b) => b - a);
+
   const renderOverview = () => {
-    // Transform monthlyExpenses object into an array for the chart
-    const transformedMonthlyExpenses = Object.entries(dashboard.monthlyExpenses || {}).map(([month, amount]) => ({
-      month,
-      amount: safeNumber(amount)
-    }));
+    // Transform and sort monthlyExpenses object into an array for the chart, filtered by selected year
+    const transformedMonthlyExpenses = Object.entries(dashboard.monthlyExpenses || {})
+      .map(([monthKey, amount]) => {
+        // If monthKey is "YYYY-MM", extract the year and month number
+        let year = null;
+        let monthNum = monthKey;
+        if (/^\d{4}-\d{2}$/.test(monthKey)) {
+          const parts = monthKey.split('-');
+          year = Number(parts[0]);
+          monthNum = Number(parts[1]);
+        } else {
+          monthNum = Number(monthKey);
+        }
+        return {
+          year,
+          month: monthNum,
+          amount: safeNumber(amount)
+        };
+      })
+      .filter(entry => entry.year === overviewYear)
+      .sort((a, b) => a.month - b.month);
     // Transform expensesByCategory object into an array for the Pie chart
     const transformedExpensesByCategory = Object.entries(dashboard.expensesByCategory || {}).map(([categoryName, amount]) => ({
       name: getCategoryDisplay(categoryName),
       value: safeNumber(amount)
     }));
     return (
-      <div className="space-y-6">
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.totalExpenses)}</p>
-              </div>
-              <Receipt className="h-8 w-8 text-blue-500" />
+    <div className="space-y-6">
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.totalExpenses)}</p>
             </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Approved</p>
-                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.approvedExpenses)}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.pendingExpenses)}</p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-500" />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Rejected</p>
-                <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.rejectedExpenses)}</p>
-              </div>
-              <XCircle className="h-8 w-8 text-red-500" />
-            </div>
+            <Receipt className="h-8 w-8 text-blue-500" />
           </div>
         </div>
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Approved</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.approvedExpenses)}</p>
+            </div>
+            <CheckCircle className="h-8 w-8 text-green-500" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pending</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.pendingExpenses)}</p>
+            </div>
+            <Clock className="h-8 w-8 text-yellow-500" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Rejected</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.rejectedExpenses)}</p>
+            </div>
+            <XCircle className="h-8 w-8 text-red-500" />
+          </div>
+        </div>
+      </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={transformedMonthlyExpenses}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-                <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Monthly Expense Trends</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Year:</span>
+              <select
+                value={overviewYear}
+                onChange={e => setOverviewYear(Number(e.target.value))}
+                className="border rounded px-2 py-1"
+              >
+                {availableOverviewYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-4">Expenses by Category</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <RechartsPieChart>
-                <Pie
-                  data={transformedExpensesByCategory}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
-                >
-                  {transformedExpensesByCategory.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-              </RechartsPieChart>
-            </ResponsiveContainer>
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={transformedMonthlyExpenses}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
+              <YAxis />
+              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+              <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-lg font-semibold mb-4">Expenses by Category</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <RechartsPieChart>
+              <Pie
+                  data={transformedExpensesByCategory}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                  label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
+              >
+                  {transformedExpensesByCategory.map((entry, index) => (
+                    (<Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />)
+                  ))}
+              </Pie>
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+            </RechartsPieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
         {/* Recent Activity Feed */}
         <div className="bg-white p-6 rounded-lg shadow">
@@ -288,8 +338,8 @@ const Dashboard = () => {
             )}
           </ul>
         </div>
-      </div>
-    );
+    </div>
+  );
   };
 
   const renderExpenses = () => (
@@ -338,7 +388,6 @@ const Dashboard = () => {
                   expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                   expense.category.toLowerCase().includes(searchTerm.toLowerCase())
                 )
-
                 .map((expense) => (
                 <tr key={expense.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>
@@ -361,54 +410,54 @@ const Dashboard = () => {
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button 
-                        onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('edit'); }}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
+                          <button 
+                            onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('edit'); }}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
                       {expense.approvalStatus === 'PENDING' && (
-                        <button 
-                          onClick={async () => {
-                            if (window.confirm('Are you sure you want to delete this expense?')) {
-                              try {
-                                console.log('Starting delete process for expense:', expense.id);
-                                // Use the api instance with proper error handling
-                                const response = await api.delete(`/expenses/${expense.id}`);
-                                console.log('Delete response:', response);
-                                // Update local state
-                                setExpenses(prev => {
-                                  const currentExpenses = Array.isArray(prev) ? prev : [];
-                                  return currentExpenses.filter(e => e.id !== expense.id);
-                                });
-                                // Refresh dashboard data to update analytics//test
-                                refreshDashboardData();
-                                addNotification('Expense deleted successfully!', 'success');
-                              } catch (err) {
-                                console.error('Delete error:', err);
-                                console.error('Error response:', err.response);
-                                console.error('Error status:', err.response?.status);
-                                console.error('Error data:', err.response?.data);
-                                let errorMessage = 'Failed to delete expense';
-                                if (err.response?.status === 401) {
-                                  errorMessage = 'Authentication failed. Please log in again.';
-                                } else if (err.response?.status === 403) {
-                                  errorMessage = 'You are not authorized to delete this expense.';
-                                } else if (err.response?.status === 404) {
-                                  errorMessage = 'Expense not found.';
-                                } else if (err.response?.data?.message) {
-                                  errorMessage = err.response.data.message;
-                                } else if (err.message) {
-                                  errorMessage = err.message;
+                          <button 
+                            onClick={async () => {
+                              if (window.confirm('Are you sure you want to delete this expense?')) {
+                                try {
+                                  console.log('Starting delete process for expense:', expense.id);
+                                  // Use the api instance with proper error handling
+                                  const response = await api.delete(`/expenses/${expense.id}`);
+                                  console.log('Delete response:', response);
+                                  // Update local state
+                                  setExpenses(prev => {
+                                    const currentExpenses = Array.isArray(prev) ? prev : [];
+                                    return currentExpenses.filter(e => e.id !== expense.id);
+                                  });
+                                  // Refresh dashboard data to update analytics
+                                  refreshDashboardData();
+                                  addNotification('Expense deleted successfully!', 'success');
+                                } catch (err) {
+                                  console.error('Delete error:', err);
+                                  console.error('Error response:', err.response);
+                                  console.error('Error status:', err.response?.status);
+                                  console.error('Error data:', err.response?.data);
+                                  let errorMessage = 'Failed to delete expense';
+                                  if (err.response?.status === 401) {
+                                    errorMessage = 'Authentication failed. Please log in again.';
+                                  } else if (err.response?.status === 403) {
+                                    errorMessage = 'You are not authorized to delete this expense.';
+                                  } else if (err.response?.status === 404) {
+                                    errorMessage = 'Expense not found.';
+                                  } else if (err.response?.data?.message) {
+                                    errorMessage = err.response.data.message;
+                                  } else if (err.message) {
+                                    errorMessage = err.message;
+                                  }
+                                  addNotification(errorMessage, 'error');
                                 }
-                                addNotification(errorMessage, 'error');
                               }
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                            }}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                       )}
                     </div>
                   </td>
@@ -421,13 +470,35 @@ const Dashboard = () => {
     </div>
   );
 
-  const renderAnalytics = () => {
-    // Transform monthlyExpenses object into an array for Recharts
-    const transformedMonthlyExpenses = Object.entries(dashboard.monthlyExpenses || {}).map(([month, amount]) => ({
-      month: month, // e.g., "2025-06"
-      amount: safeNumber(amount)
-    }));
+  // --- Analytics Tab: Monthly Spending Trend Data Transformation ---
+  // Helper to extract year and month from keys like "2024-06"
+  const parseYearMonth = (key) => {
+    if (/^\d{4}-\d{2}$/.test(key)) {
+      const [year, month] = key.split('-');
+      return { year: Number(year), month: Number(month) };
+    }
+    return { year: null, month: Number(key) };
+  };
 
+  // --- Analytics Tab: Get available years from monthlyExpenses keys ---
+  const availableAnalyticsYears = Array.from(
+    new Set(
+      Object.keys(dashboard.monthlyExpenses || {})
+        .map((key) => parseYearMonth(key).year)
+        .filter((year) => !!year)
+    )
+  ).sort((a, b) => b - a);
+
+  // --- Analytics Tab: Filter and transform monthlyExpenses for selected year ---
+  const transformedMonthlyExpenses = Object.entries(dashboard.monthlyExpenses || {})
+    .map(([key, amount]) => {
+      const { year, month } = parseYearMonth(key);
+      return { year, month, amount: safeNumber(amount) };
+    })
+    .filter((entry) => entry.year === analyticsYear)
+    .sort((a, b) => a.month - b.month);
+
+  const renderAnalytics = () => {
     // Transform expensesByCategory object into an array for Recharts
     const transformedExpensesByCategory = Object.entries(dashboard.expensesByCategory || {}).map(([categoryName, amount]) => ({
       name: getCategoryDisplay(categoryName), // Use the display name with emoji
@@ -458,21 +529,35 @@ const Dashboard = () => {
         </div>
 
         {/* Analytics Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-4">Monthly Spending Trend</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold">Monthly Spending Trend</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Year:</span>
+                <select
+                  value={analyticsYear}
+                  onChange={e => setAnalyticsYear(Number(e.target.value))}
+                  className="border rounded px-2 py-1"
+                >
+                  {availableAnalyticsYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={transformedMonthlyExpenses}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
                 <YAxis />
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
                 <Bar dataKey="amount" fill="#3B82F6" />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-1">
             <h3 className="text-lg font-semibold mb-4">Category Breakdown</h3>
             <div className="space-y-4">
               {transformedExpensesByCategory.map((category, index) => (

@@ -51,15 +51,15 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 public class ExpenseController {
 
     private final AuditLogController auditLogController;
+	
+	@Autowired
+	ExpenseService expenseService;
 
-    @Autowired
-    ExpenseService expenseService;
+	@Autowired
+	ExpenseRepository expenseRepository;
 
-    @Autowired
-    ExpenseRepository expenseRepository;
-
-    @Autowired
-    com.expense.management.repository.UserRepository userRepository;
+	@Autowired
+	com.expense.management.repository.UserRepository userRepository;
 
     @Autowired
     private CloudinaryService cloudinaryService;
@@ -67,29 +67,29 @@ public class ExpenseController {
     ExpenseController(AuditLogController auditLogController) {
         this.auditLogController = auditLogController;
     }
-
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> createExpense(
-            @RequestParam("amount") double amount,
-            @RequestParam("category") String category,
-            @RequestParam("description") String description,
-            @RequestParam("date") String dateString,
-            @RequestParam(value = "priority", required = false) String priority,
-            @RequestParam(value = "comments", required = false) String comments,
-            @RequestParam(value = "attachment", required = false) MultipartFile attachment) throws IOException {
-
-        Expense expense = new Expense();
-        expense.setAmount(amount);
-        expense.setCategory(category);
-        expense.setDescription(description);
-        expense.setPriority(priority != null ? priority : "MEDIUM");
-
-        // Auto-approve expenses under $100
-        if (amount <= 100.0) {
-            expense.setApprovalStatus(ExpenseStatus.APPROVED);
-        } else {
-            expense.setApprovalStatus(ExpenseStatus.PENDING);
-        }
+	
+	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseEntity<?> createExpense(
+			 @RequestParam("amount") double amount,
+		        @RequestParam("category") String category,
+		        @RequestParam("description") String description,
+		        @RequestParam("date") String dateString,
+		        @RequestParam(value = "priority", required = false) String priority,
+		        @RequestParam(value = "comments", required = false) String comments,
+		        @RequestParam(value = "attachment", required = false) MultipartFile attachment) throws IOException {
+	    
+		 Expense expense = new Expense();
+		    expense.setAmount(amount);
+		    expense.setCategory(category);
+		    expense.setDescription(description);
+		    expense.setPriority(priority != null ? priority : "MEDIUM");
+		    
+		    // Auto-approve expenses under $100
+		    if (amount <= 100.0) {
+		        expense.setApprovalStatus(ExpenseStatus.APPROVED);
+		    } else {
+		        expense.setApprovalStatus(ExpenseStatus.PENDING);
+		    }
 
         // Set approval level for 3-level approval workflow (only for expenses that need approval)
         if (amount > 100.0) {
@@ -101,49 +101,49 @@ public class ExpenseController {
                 expense.setApprovalLevel(ApprovalLevel.ADMIN);
             }
         }
+		    
+		    expense.setComments(comments);
+		    expense.setDate(LocalDate.parse(dateString));
+		    
+		    // Handle receipt upload to Cloudinary
+		    if (attachment != null && !attachment.isEmpty()) {
+		        try {
+		            Map<String, Object> uploadResult = cloudinaryService.uploadReceipt(attachment);
+		            String receiptUrl = cloudinaryService.getSecureUrl(uploadResult);
+		            expense.setReceiptUrl(receiptUrl);
+		            expense.setAttachmentType(attachment.getContentType());
+		        } catch (Exception e) {
+		            return ResponseEntity.badRequest().body(Map.of("error", "Receipt upload failed: " + e.getMessage()));
+		        }
+		    }
 
-        expense.setComments(comments);
-        expense.setDate(LocalDate.parse(dateString));
-
-        // Handle receipt upload to Cloudinary
-        if (attachment != null && !attachment.isEmpty()) {
-            try {
-                Map<String, Object> uploadResult = cloudinaryService.uploadReceipt(attachment);
-                String receiptUrl = cloudinaryService.getSecureUrl(uploadResult);
-                expense.setReceiptUrl(receiptUrl);
-                expense.setAttachmentType(attachment.getContentType());
-            } catch (Exception e) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Receipt upload failed: " + e.getMessage()));
-            }
-        }
-
-        // Associate with current user
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+		    // Associate with current user
+		    String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByEmail(userEmail).orElse(null);
-        expense.setUser(user);
+		    expense.setUser(user);
 
-        expenseService.add(expense);
-
-        // Create a custom response object to avoid circular reference
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "Expense saved successfully");
-
-        Map<String, Object> expenseData = new HashMap<>();
-        expenseData.put("id", expense.getId());
-        expenseData.put("amount", expense.getAmount());
-        expenseData.put("category", expense.getCategory());
-        expenseData.put("description", expense.getDescription());
-        expenseData.put("date", expense.getDate());
-        expenseData.put("approvalStatus", expense.getApprovalStatus());
-        expenseData.put("comments", expense.getComments());
-        expenseData.put("priority", expense.getPriority());
-        expenseData.put("receiptUrl", expense.getReceiptUrl());
-
-        response.put("expense", expenseData);
-
-        return ResponseEntity.ok(response);
-    }
-
+		    expenseService.add(expense);
+		    
+		    // Create a custom response object to avoid circular reference
+		    Map<String, Object> response = new HashMap<>();
+		    response.put("message", "Expense saved successfully");
+		    
+		    Map<String, Object> expenseData = new HashMap<>();
+		    expenseData.put("id", expense.getId());
+		    expenseData.put("amount", expense.getAmount());
+		    expenseData.put("category", expense.getCategory());
+		    expenseData.put("description", expense.getDescription());
+		    expenseData.put("date", expense.getDate());
+		    expenseData.put("approvalStatus", expense.getApprovalStatus());
+		    expenseData.put("comments", expense.getComments());
+		    expenseData.put("priority", expense.getPriority());
+		    expenseData.put("receiptUrl", expense.getReceiptUrl());
+		    
+		    response.put("expense", expenseData);
+		    
+		    return ResponseEntity.ok(response);
+	}
+	
     @GetMapping
     public ResponseEntity<?> getAllExpenses() {
         List<Expense> expenses = expenseService.getAll();
@@ -180,7 +180,7 @@ public class ExpenseController {
 
         return new ResponseEntity<>(cleanExpenses, HttpStatus.OK);
     }
-
+    
     @GetMapping("/total")
     public double getTotalExpenses() {
         double totalExpenses = 0.0;
@@ -237,23 +237,23 @@ public class ExpenseController {
         System.out.println("=== DELETE EXPENSE ENDPOINT CALLED ===");
         System.out.println("Expense ID: " + expenseId);
         System.out.println("Current user: " + SecurityContextHolder.getContext().getAuthentication().getName());
-
+        
         try {
             // Use Spring Data JPA repository instead of HibernateUtil
             Expense expense = expenseRepository.findById(expenseId).orElse(null);
-
+            
             System.out.println("Found expense: " + (expense != null ? "YES" : "NO"));
             if (expense != null) {
                 System.out.println(
                         "Expense user: " + (expense.getUser() != null ? expense.getUser().getEmail() : "NULL"));
                 System.out.println("Expense status: " + expense.getApprovalStatus());
             }
-
+            
             if (expense == null) {
                 System.out.println("Expense not found, returning 404");
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Expense not found."));
             }
-
+            
             // Get current user
             String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
             if (expense.getUser() == null || !expense.getUser().getEmail().equals(userEmail)) {
@@ -261,7 +261,7 @@ public class ExpenseController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("message", "You are not allowed to delete this expense."));
             }
-
+            
             if (expense.getApprovalStatus() != ExpenseStatus.PENDING) {
                 System.out.println("Expense is not pending, cannot delete");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -293,7 +293,7 @@ public class ExpenseController {
                     // Continue with expense deletion even if Cloudinary deletion fails
                 }
             }
-
+            
             // Delete receipt from Cloudinary if exists
             if (expense.getReceiptUrl() != null && !expense.getReceiptUrl().isEmpty()) {
                 try {
@@ -306,7 +306,7 @@ public class ExpenseController {
                     // Continue with expense deletion even if Cloudinary deletion fails
                 }
             }
-
+            
             System.out.println("Deleting expense...");
             expenseRepository.delete(expense);
             System.out.println("Expense deleted successfully!");
@@ -372,25 +372,63 @@ public class ExpenseController {
     // Approve expense by ID
     @PutMapping("/{id}/approve")
     public ResponseEntity<?> approveExpense(@PathVariable Long id) {
-        boolean bol = expenseService.approve(id);
-        System.out.println(bol);
-        if (bol) {
-            return new ResponseEntity<>("updated!", HttpStatus.OK);
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User manager = userRepository.findByEmail(email).orElse(null);
+        if (manager == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Manager not found");
         }
-
-        return new ResponseEntity<>("failed!", HttpStatus.OK);
+        boolean result = expenseService.approve(id, manager.getId());
+        return result ? ResponseEntity.ok("updated!") : ResponseEntity.ok("failed!");
     }
 
     // Reject expense by ID
     @PutMapping("/{id}/reject")
     public ResponseEntity<?> rejectExpense(@PathVariable Long id) {
-        boolean bol = expenseService.reject(id);
-        System.out.println(bol);
-        if (bol) {
-            return new ResponseEntity<>("rejected!", HttpStatus.OK);
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User manager = userRepository.findByEmail(email).orElse(null);
+        if (manager == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Manager not found");
         }
+        boolean result = expenseService.reject(id, manager.getId());
+        return result ? ResponseEntity.ok("rejected!") : ResponseEntity.ok("failed!");
+    }
 
-        return new ResponseEntity<>("failed!", HttpStatus.OK);
+    // Endpoint to get all expenses processed by the current manager
+    @GetMapping("/processed/manager")
+    public ResponseEntity<List<Map<String, Object>>> getProcessedByManager() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User manager = userRepository.findByEmail(email).orElse(null);
+        if (manager == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        List<Expense> processed = expenseRepository.findByApprovedByManagerId(manager.getId());
+        // Return clean expense data with user info
+        List<Map<String, Object>> cleanExpenses = processed.stream()
+            .map(expense -> {
+                Map<String, Object> cleanExpense = new HashMap<>();
+                cleanExpense.put("id", expense.getId());
+                cleanExpense.put("amount", expense.getAmount());
+                cleanExpense.put("category", expense.getCategory());
+                cleanExpense.put("description", expense.getDescription());
+                cleanExpense.put("date", expense.getDate());
+                cleanExpense.put("approvalStatus", expense.getApprovalStatus());
+                cleanExpense.put("approvalLevel", expense.getApprovalLevel());
+                cleanExpense.put("priority", expense.getPriority());
+                cleanExpense.put("comments", expense.getComments());
+                cleanExpense.put("attachmentType", expense.getAttachmentType());
+                cleanExpense.put("receiptUrl", expense.getReceiptUrl());
+                // Add user information
+                if (expense.getUser() != null) {
+                    Map<String, Object> userInfo = new HashMap<>();
+                    userInfo.put("id", expense.getUser().getId());
+                    userInfo.put("email", expense.getUser().getEmail());
+                    userInfo.put("fullName", expense.getUser().getFullName());
+                    cleanExpense.put("user", userInfo);
+                }
+                return cleanExpense;
+            })
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(cleanExpenses);
     }
 
     // Role-specific endpoints for 3-level approval workflow
@@ -421,6 +459,50 @@ public class ExpenseController {
     public ResponseEntity<?> getFullyApprovedExpenses() {
         List<Expense> expenses = expenseService.getFullyApprovedExpenses();
         return ResponseEntity.ok(createCleanExpenseList(expenses));
+    }
+
+    // Endpoint to get all expenses processed by the current finance user
+    @GetMapping("/processed/finance")
+    public ResponseEntity<List<Map<String, Object>>> getProcessedByFinance() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User finance = userRepository.findByEmail(email).orElse(null);
+        if (finance == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        // Find all expenses where approvalLevel is ADMIN or status is APPROVED/REJECTED and finance approved them
+        // For now, show all expenses where approvalLevel is ADMIN or status is APPROVED/REJECTED, but only if amount > 100
+        List<Expense> processed = expenseRepository.findAll().stream()
+            .filter(e -> (e.getApprovalLevel() == ApprovalLevel.ADMIN ||
+                          e.getApprovalStatus() == ExpenseStatus.APPROVED ||
+                          e.getApprovalStatus() == ExpenseStatus.REJECTED)
+                      && e.getAmount() > 100.0)
+            .collect(Collectors.toList());
+        List<Map<String, Object>> cleanExpenses = processed.stream()
+            .map(expense -> {
+                Map<String, Object> cleanExpense = new HashMap<>();
+                cleanExpense.put("id", expense.getId());
+                cleanExpense.put("amount", expense.getAmount());
+                cleanExpense.put("category", expense.getCategory());
+                cleanExpense.put("description", expense.getDescription());
+                cleanExpense.put("date", expense.getDate());
+                cleanExpense.put("approvalStatus", expense.getApprovalStatus());
+                cleanExpense.put("approvalLevel", expense.getApprovalLevel());
+                cleanExpense.put("priority", expense.getPriority());
+                cleanExpense.put("comments", expense.getComments());
+                cleanExpense.put("attachmentType", expense.getAttachmentType());
+                cleanExpense.put("receiptUrl", expense.getReceiptUrl());
+                // Add user information
+                if (expense.getUser() != null) {
+                    Map<String, Object> userInfo = new HashMap<>();
+                    userInfo.put("id", expense.getUser().getId());
+                    userInfo.put("email", expense.getUser().getEmail());
+                    userInfo.put("fullName", expense.getUser().getFullName());
+                    cleanExpense.put("user", userInfo);
+                }
+                return cleanExpense;
+            })
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(cleanExpenses);
     }
 
     // Helper method to create clean expense list without circular references
@@ -472,7 +554,7 @@ public class ExpenseController {
                 .filter(e -> Arrays.asList(ExpenseStatus.PENDING, ExpenseStatus.APPROVED, ExpenseStatus.REJECTED)
                     .contains(e.getApprovalStatus()))
                 .collect(Collectors.toList());
-
+            
             if (format.equalsIgnoreCase("pdf")) {
                 byte[] pdfBytes = generatePdfReport(userExpenses);
                 return ResponseEntity.ok()
@@ -495,32 +577,32 @@ public class ExpenseController {
                     .body("Error generating report".getBytes());
         }
     }
-
+    
     private byte[] generatePdfReport(List<Expense> expenses) throws DocumentException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Document document = new Document();
         PdfWriter.getInstance(document, baos);
-
+        
         document.open();
-
+        
         // Add title
         Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
         Paragraph title = new Paragraph("Expense Report", titleFont);
         title.setAlignment(Element.ALIGN_CENTER);
         document.add(title);
         document.add(new Paragraph(" ")); // Spacing
-
+        
         // Add date
         Font dateFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
         Paragraph date = new Paragraph(
                 "Generated on: " + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")), dateFont);
         document.add(date);
         document.add(new Paragraph(" ")); // Spacing
-
+        
         // Create table
         PdfPTable table = new PdfPTable(5);
         table.setWidthPercentage(100);
-
+        
         // Add headers
         Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
         String[] headers = { "Date", "Category", "Description", "Amount", "Status" };
@@ -530,7 +612,7 @@ public class ExpenseController {
             cell.setPadding(5);
             table.addCell(cell);
         }
-
+        
         // Add data
         Font dataFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
         double totalAmount = 0;
@@ -542,31 +624,31 @@ public class ExpenseController {
             table.addCell(new PdfPCell(new Phrase(expense.getApprovalStatus().toString(), dataFont)));
             totalAmount += expense.getAmount();
         }
-
+        
         document.add(table);
         document.add(new Paragraph(" ")); // Spacing
-
+        
         // Add total
         Font totalFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
         Paragraph total = new Paragraph("Total Amount: $" + String.format("%.2f", totalAmount), totalFont);
         document.add(total);
-
+        
         document.close();
         return baos.toByteArray();
     }
-
+    
     private String generateCsvReport(List<Expense> expenses) {
         StringBuilder csv = new StringBuilder();
         csv.append("Date,Category,Description,Amount,Status\n");
-
+        
         for (Expense expense : expenses) {
             csv.append(expense.getDate()).append(",")
-                    .append(expense.getCategory()).append(",")
-                    .append("\"").append(expense.getDescription().replace("\"", "\"\"")).append("\",")
-                    .append(expense.getAmount()).append(",")
-                    .append(expense.getApprovalStatus()).append("\n");
+               .append(expense.getCategory()).append(",")
+               .append("\"").append(expense.getDescription().replace("\"", "\"\"")).append("\",")
+               .append(expense.getAmount()).append(",")
+               .append(expense.getApprovalStatus()).append("\n");
         }
-
+        
         return csv.toString();
     }
 
@@ -640,10 +722,10 @@ public class ExpenseController {
 
             // Set approval status based on amount after any edit
             double AUTO_APPROVAL_THRESHOLD = 100.0;
-            if (amount < AUTO_APPROVAL_THRESHOLD) {
-                expense.setApprovalStatus(ExpenseStatus.APPROVED);
-            } else {
-                expense.setApprovalStatus(ExpenseStatus.PENDING);
+                if (amount < AUTO_APPROVAL_THRESHOLD) {
+                    expense.setApprovalStatus(ExpenseStatus.APPROVED);
+                } else {
+                    expense.setApprovalStatus(ExpenseStatus.PENDING);
             }
 
             // Set approval level for 3-level approval workflow (only for expenses that need approval)
