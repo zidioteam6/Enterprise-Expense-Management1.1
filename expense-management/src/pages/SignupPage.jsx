@@ -45,19 +45,18 @@ export default function SignupPage() {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h2>Create Account</h2>
-          <p>Sign up to get started</p>
+      <div className="login-card" style={{ padding: '0', boxShadow: '0 10px 32px -8px rgba(139,92,246,0.15)' }}>
+        <div className="login-header" style={{ borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 'bold', letterSpacing: '-0.5px' }}>Create Account</h2>
+          <p style={{ fontSize: '1rem', marginTop: '0.5rem' }}>Sign up to get started</p>
         </div>
-        <div className="login-form">
-          <form onSubmit={handleSubmit}>
+        <div className="login-form" style={{ padding: '2rem' }}>
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="error-message">
+              <div className="error-message" style={{ background: '#FEE2E2', color: '#B91C1C', borderRadius: '0.5rem', padding: '0.75rem 1rem', marginBottom: '1rem', fontWeight: 500, fontSize: '0.95rem', textAlign: 'center' }}>
                 {error}
               </div>
             )}
-
             {/* Full Name input */}
             <div className="form-group">
               <label htmlFor="fullName">Full Name</label>
@@ -72,10 +71,10 @@ export default function SignupPage() {
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="John Doe"
                   required
+                  autoComplete="name"
                 />
               </div>
             </div>
-
             {/* Email input */}
             <div className="form-group">
               <label htmlFor="email">Email</label>
@@ -90,10 +89,10 @@ export default function SignupPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
-
             {/* Password input */}
             <div className="form-group">
               <label htmlFor="password">Password</label>
@@ -108,17 +107,19 @@ export default function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   className="toggle-password"
                   onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
-
             {/* Confirm Password input */}
             <div className="form-group">
               <label htmlFor="confirmPassword">Confirm Password</label>
@@ -133,42 +134,42 @@ export default function SignupPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   className="toggle-password"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  tabIndex={-1}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                 >
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
-
             {/* Terms and Conditions */}
-            <div className="form-group">
-              <label className="remember-me terms-checkbox">
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="remember-me terms-checkbox" style={{ alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={acceptTerms}
                   onChange={(e) => setAcceptTerms(e.target.checked)}
                   required
+                  style={{ accentColor: '#8B5CF6', marginTop: '0.2rem' }}
                 />
-                I agree to the{' '}
-                <Link to="/terms" className="terms-link">
-                  Terms of Service
-                </Link>{' '}
-                and{' '}
-                <Link to="/privacy" className="terms-link">
-                  Privacy Policy
-                </Link>
+                <span style={{ fontSize: '0.95rem', color: '#4B5563' }}>
+                  I agree to the{' '}
+                  <Link to="/terms" className="terms-link">Terms of Service</Link>{' '}and{' '}
+                  <Link to="/privacy" className="terms-link">Privacy Policy</Link>
+                </span>
               </label>
             </div>
-
             {/* Submit button */}
             <button
               type="submit"
               disabled={isSubmitting || !acceptTerms}
               className="login-button"
+              style={{ fontSize: '1.1rem', fontWeight: 600, padding: '0.75rem 0', marginTop: '0.5rem', borderRadius: '0.75rem' }}
             >
               {isSubmitting ? (
                 <>
@@ -204,12 +205,11 @@ export default function SignupPage() {
               )}
             </button>
           </form>
-
           {/* Sign in link */}
-          <div className="signup">
+          <div className="signup" style={{ marginTop: '2rem', fontSize: '1rem' }}>
             <p>
               Already have an account?{' '}
-              <Link to="/login" className="forgot-password">
+              <Link to="/login" className="forgot-password" style={{ fontWeight: 600 }}>
                 Sign in
               </Link>
             </p>

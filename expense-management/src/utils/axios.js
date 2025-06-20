@@ -61,14 +61,14 @@ api.interceptors.response.use(
       console.log('DELETE request failed, not redirecting automatically');
       return Promise.reject(error);
     }
-
+    
     // Only redirect to login on 401 for GET requests
     if (error.response?.status === 401) {
       const method = error.config?.method?.toLowerCase();
       if (method === 'get') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
       } else {
         // For PUT/POST/PATCH, just reject the error and let the component handle it
         return Promise.reject(error);
