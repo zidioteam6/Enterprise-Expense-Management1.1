@@ -1,6 +1,7 @@
 package com.expense.management.model;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -75,6 +76,10 @@ public class Expense {
 	@Column(name = "approved_by_manager_id")
 	private Long approvedByManagerId;
 
+	@Column(name = "created_at", updatable = false)
+	@CreationTimestamp
+	private LocalDateTime createdAt;
+
 	// // Getters and Setters for all fields
 	public Long getId() { return id; }
 	public void setId(Long id) { this.id = id; }
@@ -122,5 +127,8 @@ public class Expense {
 	
 	public Long getApprovedByManagerId() { return approvedByManagerId; }
 	public void setApprovedByManagerId(Long approvedByManagerId) { this.approvedByManagerId = approvedByManagerId; }
+	
+	public LocalDateTime getCreatedAt() { return createdAt; }
+	public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 	
 }

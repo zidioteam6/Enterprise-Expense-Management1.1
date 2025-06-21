@@ -22,6 +22,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useNotification } from '../context/NotificationContext';
 
 const API_BASE = 'http://localhost:8080';
 
@@ -39,8 +40,51 @@ const FinanceDashboard = () => {
   const [error, setError] = useState(null);
   const [processedByFinanceExpenses, setProcessedByFinanceExpenses] = useState([]);
 
+  // User state for settings
+  const [user, setUser] = useState(null);
+
+  // Modal state for expense viewing
+  const [selectedExpense, setSelectedExpense] = useState(null);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseModalMode, setExpenseModalMode] = useState('view');
+
+  // --- Overview Tab: Year Selector State ---
+  const [overviewYear, setOverviewYear] = useState(new Date().getFullYear());
+
+  // --- Overview Tab: Get available years from monthlyExpenses keys ---
+  const availableOverviewYears = Array.from(
+    new Set(
+      Object.keys((dashboardData && dashboardData.monthlyExpenses) || {})
+        .map((key) => {
+          if (/^\d{4}-\d{2}$/.test(key)) {
+            return Number(key.split('-')[0]);
+          }
+          return null;
+        })
+        .filter((year) => !!year)
+    )
+  ).sort((a, b) => b - a);
+
+  // --- Analytics Tab: Year Selector State ---
+  const [analyticsYear, setAnalyticsYear] = useState(new Date().getFullYear());
+
+  // --- Analytics Tab: Get available years from monthlyExpenses keys ---
+  const availableAnalyticsYears = Array.from(
+    new Set(
+      Object.keys((dashboardData && dashboardData.monthlyExpenses) || {})
+        .map((key) => {
+          if (/^\d{4}-\d{2}$/.test(key)) {
+            return Number(key.split('-')[0]);
+          }
+          return null;
+        })
+        .filter((year) => !!year)
+    )
+  ).sort((a, b) => b - a);
+
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -128,6 +172,10 @@ const FinanceDashboard = () => {
         });
         console.log('Budget data:', budgetRes.data);
         setBudget(budgetRes.data.budget);
+        
+        // Get current user data for settings
+        const userData = JSON.parse(localStorage.getItem('user'));
+        setUser(userData);
       } catch (err) {
         console.error('Finance dashboard fetch error:', err);
         setError(err?.response?.data?.message || err.message || 'Failed to load finance dashboard data.');
@@ -196,7 +244,65 @@ const FinanceDashboard = () => {
     }
   };
 
-  const renderOverview = () => (
+  // Backend-powered export logic for PDF/Excel
+  const exportData = async (format) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE}/api/expenses/export-all/${format}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+      if (!response.data || response.data.size === 0) {
+        throw new Error('Empty response received from server');
+      }
+      const mimeType = format === 'pdf' ? 'application/pdf' :
+        format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
+        'application/octet-stream';
+      const blob = new Blob([response.data], { type: mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `all_expenses_report.${format}`);
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      addNotification(`All expenses report exported successfully as ${format.toUpperCase()}`, 'success');
+    } catch (error) {
+      if (error.response?.status === 404) {
+        addNotification('Export feature not yet implemented on the server', 'error');
+      } else if (error.response?.status === 403) {
+        addNotification('Access denied. Manager or Admin role required.', 'error');
+      } else {
+        addNotification(error?.response?.data?.message || 'Failed to export data', 'error');
+      }
+    }
+  };
+
+  const renderOverview = () => {
+    // Transform and sort monthlyExpenses object into an array for the chart, filtered by selected year
+    const transformedMonthlyExpenses = Object.entries(dashboardData.monthlyExpenses || {})
+      .map(([monthKey, amount]) => {
+        let year = null;
+        let monthNum = monthKey;
+        if (/^\d{4}-\d{2}$/.test(monthKey)) {
+          const parts = monthKey.split('-');
+          year = Number(parts[0]);
+          monthNum = Number(parts[1]);
+        } else {
+          monthNum = Number(monthKey);
+        }
+        return {
+          year,
+          month: monthNum,
+          amount: safeNumber(amount)
+        };
+      })
+      .filter(entry => entry.year === overviewYear)
+      .sort((a, b) => a.month - b.month);
+
+    return (
     <div className="space-y-6">
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -227,13 +333,13 @@ const FinanceDashboard = () => {
             <Clock className="h-8 w-8 text-yellow-500" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Monthly Spend</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.monthlyExpenses ? Object.values(dashboardData.monthlyExpenses).reduce((sum, val) => sum + val, 0) : 0)}</p>
+                <p className="text-sm font-medium text-gray-600">Rejected Expenses</p>
+                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.rejectedExpenses)}</p>
             </div>
-            <DollarSign className="h-8 w-8 text-purple-500" />
+              <XCircle className="h-8 w-8 text-red-500" />
           </div>
         </div>
       </div>
@@ -241,13 +347,27 @@ const FinanceDashboard = () => {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Monthly Expense Trends</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Year:</span>
+                <select
+                  value={overviewYear}
+                  onChange={e => setOverviewYear(Number(e.target.value))}
+                  className="border rounded px-2 py-1"
+                >
+                  {availableOverviewYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={safeArray(Object.entries(dashboardData.monthlyExpenses || {}).map(([month, amount]) => ({ month, amount })))}>
+              <LineChart data={transformedMonthlyExpenses}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
+                <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
               <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -266,7 +386,7 @@ const FinanceDashboard = () => {
                 label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
               >
                 {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
+                  <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />
                 ))}
               </Pie>
               <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
@@ -287,7 +407,7 @@ const FinanceDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -300,7 +420,7 @@ const FinanceDashboard = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
                       {expense.approvalStatus}
@@ -329,7 +449,7 @@ const FinanceDashboard = () => {
                         </>
                       )}
                       <button 
-                        onClick={() => {/* View details */}}
+                          onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('view'); }}
                         className="text-blue-600 hover:text-blue-900"
                         title="View Details"
                       >
@@ -345,6 +465,7 @@ const FinanceDashboard = () => {
       </div>
     </div>
   );
+  };
 
   const renderExpenseManagement = () => (
     <div className="space-y-6">
@@ -361,10 +482,6 @@ const FinanceDashboard = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
-          </button>
           <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
             <Filter className="h-4 w-4" />
             Advanced Filters
@@ -407,11 +524,7 @@ const FinanceDashboard = () => {
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
           <h3 className="text-lg font-semibold">All Expenses - Approval Required</h3>
-          <p className="text-sm text-gray-600 mt-2">
-            Total expenses: {expenses.length} | Pending: {expenses.filter(e => e.approvalStatus === 'PENDING').length} | 
-            Approved: {expenses.filter(e => e.approvalStatus === 'APPROVED').length} | 
-            Rejected: {expenses.filter(e => e.approvalStatus === 'REJECTED').length}
-          </p>
+
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
@@ -421,7 +534,7 @@ const FinanceDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -450,12 +563,12 @@ const FinanceDashboard = () => {
                   .map((expense) => (
                     <tr key={expense.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
                           {expense.approvalStatus}
@@ -484,7 +597,7 @@ const FinanceDashboard = () => {
                             </>
                           )}
                           <button 
-                            onClick={() => {/* View details */}}
+                            onClick={() => { setSelectedExpense(expense); setShowExpenseModal(true); setExpenseModalMode('view'); }}
                             className="text-blue-600 hover:text-blue-900"
                             title="View Details"
                           >
@@ -516,7 +629,7 @@ const FinanceDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
               </tr>
             </thead>
@@ -547,7 +660,7 @@ const FinanceDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
                           {statusLabel}
@@ -564,150 +677,190 @@ const FinanceDashboard = () => {
     </div>
   );
 
-  const renderAnalytics = () => (
+  const renderAnalytics = () => {
+    // Transform and sort monthlyExpenses for Recharts, filtered by selected year
+    const transformedMonthlyExpenses = Object.entries(dashboardData?.monthlyExpenses || {})
+      .map(([monthKey, amount]) => {
+        let year = null;
+        let monthNum = monthKey;
+        if (/^\d{4}-\d{2}$/.test(monthKey)) {
+          const parts = monthKey.split('-');
+          year = Number(parts[0]);
+          monthNum = Number(parts[1]);
+        } else {
+          monthNum = Number(monthKey);
+        }
+        return {
+          year,
+          month: monthNum,
+          amount: safeNumber(amount)
+        };
+      })
+      .filter(entry => entry.year === analyticsYear)
+      .sort((a, b) => a.month - b.month);
+
+    // Transform expensesByCategory object into an array for Recharts
+    const transformedExpensesByCategory = Object.entries(dashboardData?.expensesByCategory || {}).map(([categoryName, amount]) => ({
+      name: categoryName,
+      value: dashboardData?.totalExpenses > 0 ? (safeNumber(amount) / dashboardData.totalExpenses) * 100 : 0,
+      amount: safeNumber(amount)
+    }));
+
+    return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Analytics & Reports</h2>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+          <div className="flex gap-3">
+            <button
+              onClick={() => exportData('pdf')}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            >
             <Download className="h-4 w-4" />
-            Export Report
+              Export PDF
           </button>
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Generate Report
+            <button
+              onClick={() => exportData('xlsx')}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export Excel
           </button>
         </div>
       </div>
 
       {/* Analytics Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Expense Trends</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={safeArray(Object.entries(dashboardData.monthlyExpenses || {}).map(([month, amount]) => ({ month, amount })))}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-              <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold">Monthly Spending Trend</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Year:</span>
+                <select
+                  value={analyticsYear}
+                  onChange={e => setAnalyticsYear(Number(e.target.value))}
+                  className="border rounded px-2 py-1"
+                >
+                  {availableAnalyticsYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Category Distribution</h3>
+            </div>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value })))}>
+              <BarChart data={transformedMonthlyExpenses}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
+                <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
-              <Bar dataKey="value" fill="#3B82F6" />
+                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+                <Bar dataKey="amount" fill="#3B82F6" />
             </BarChart>
           </ResponsiveContainer>
         </div>
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-1">
+            <h3 className="text-lg font-semibold mb-4">Category Breakdown</h3>
+            <div className="space-y-4">
+              {transformedExpensesByCategory.map((category, index) => (
+                <div key={category.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5] }}
+                    ></div>
+                    <span className="text-sm font-medium">{category.name}</span>
       </div>
-
-      {/* Detailed Analytics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Top Expense Categories</h3>
-          <div className="space-y-3">
-            {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).slice(0, 5).map((category, index) => (
-              <div key={index} className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">{category.name}</span>
-                <span className="text-sm font-medium">${safeToLocaleString(category.value)}</span>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold">${safeToLocaleString(category.amount)}</div>
+                    <div className="text-xs text-gray-500">{safeToLocaleString(category.value)}%</div>
+                  </div>
               </div>
             ))}
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Approval Statistics</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Approved</span>
-              <span className="text-sm font-medium text-green-600">{safeToLocaleString(dashboardData.approvedExpenses)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Pending</span>
-              <span className="text-sm font-medium text-yellow-600">{safeToLocaleString(dashboardData.pendingExpenses)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Rejected</span>
-              <span className="text-sm font-medium text-red-600">{safeToLocaleString(dashboardData.rejectedExpenses)}</span>
-            </div>
           </div>
         </div>
       </div>
     </div>
   );
+  };
 
   const renderSettings = () => (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-xl font-semibold">Settings</h2>
+    <div className="space-y-8 max-w-2xl mx-auto py-8">
+      <h2 className="text-2xl font-bold flex items-center gap-2 mb-6">🔐 Account & Profile Settings</h2>
+      {/* Profile Card */}
+      <div className="flex items-center gap-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl shadow p-6 mb-4">
+        <div className="w-20 h-20 rounded-full bg-blue-200 flex items-center justify-center text-3xl font-bold text-white">
+          {user?.fullName?.[0] || 'U'}
       </div>
-
-      {/* Budget Settings */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Monthly Budget Settings</h3>
+        <div className="flex-1">
+          <div className="text-xl font-semibold text-gray-900">{user?.fullName || 'N/A'}</div>
+          <div className="text-gray-600">{user?.email || 'N/A'}</div>
+          <div className="text-sm text-blue-700 mt-1">{user?.role ? user.role.replace('ROLE_', '') : 'Finance'}</div>
+          <div className="text-xs text-gray-400 mt-1">Joined: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</div>
         </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Budget Limit</label>
-              <input
-                type="number"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter monthly budget"
-                defaultValue={budget || 0}
-              />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Budget Alert Threshold (%)</label>
-              <input
-                type="number"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="80"
-                defaultValue="80"
-              />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Personal Information */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-6">
+          <h3 className="text-lg font-medium mb-2">Personal Information</h3>
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Name:</label>
+              <span className="text-gray-900">{user?.fullName || 'N/A'}</span>
             </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Email:</label>
+              <span className="text-gray-900">{user?.email || 'N/A'}</span>
           </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Phone:</label>
+              <span className="text-gray-900">(not set)</span>
+          </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="w-32 text-gray-600 font-medium">Address:</label>
+              <span className="text-gray-900">(not set)</span>
+        </div>
+      </div>
+        </div>
+        {/* Authentication Settings */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-6">
+          <h3 className="text-lg font-medium mb-2">Authentication Settings</h3>
+          {/* Only show change password if user.provider is not set or is 'local' */}
+          {(!user?.provider || user?.provider === 'local') ? (
+            <ChangePasswordPanel user={user} addNotification={addNotification} />
+          ) : (
+            <div className="text-gray-500 text-sm">Password change is not available for social login accounts.</div>
+          )}
           <div className="mt-6">
-            <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-              Save Settings
-            </button>
-          </div>
-        </div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-1">Security Tips</h4>
+            <ul className="list-disc list-inside text-xs text-gray-500 space-y-1">
+              <li>Use a strong, unique password for your account.</li>
+              <li>Never share your password with anyone.</li>
+              <li>Change your password regularly.</li>
+              <li>Enable two-factor authentication if available.</li>
+            </ul>
+              </div>
+            </div>
       </div>
-
-      {/* Notification Settings */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Notification Settings</h3>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+      {/* Divider */}
+      <div className="border-t my-8"></div>
+      {/* Account Actions */}
+      <div className="bg-white rounded-lg shadow p-6 flex flex-col md:flex-row items-center justify-between gap-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-900">Email Notifications</h4>
-                <p className="text-sm text-gray-500">Receive notifications for expense approvals</p>
+          <h3 className="text-lg font-medium mb-2">Account Actions</h3>
+          <p className="text-sm text-gray-500">You can log out or request account deletion below.</p>
               </div>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                Enable
+        <div className="flex gap-3 mt-2 md:mt-0">
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+          >
+            Log Out
+          </button>
+          <button
+            className="bg-gray-300 text-gray-700 px-4 py-2 rounded cursor-not-allowed opacity-60"
+            disabled
+            title="Account deletion is not available yet."
+          >
+            Delete Account
               </button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">Budget Alerts</h4>
-                <p className="text-sm text-gray-500">Get notified when budget threshold is reached</p>
-              </div>
-              <button className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
-                Disable
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -766,7 +919,7 @@ const FinanceDashboard = () => {
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">M</span>
                 </div>
-                <span className="text-sm font-medium text-gray-700">Finance Manager {JSON.parse(localStorage.getItem('user')).fullName}</span>
+                <span className="text-sm font-medium text-gray-700">Finance Manager </span>
                 <button
                   onClick={() => { logout(); navigate('/login'); }}
                   className="ml-4 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
@@ -811,8 +964,139 @@ const FinanceDashboard = () => {
           {activeTab === 'settings' && renderSettings()}
         </div>
       </div>
+
+      {/* Expense Modal */}
+      {showExpenseModal && selectedExpense && expenseModalMode === 'view' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">View Expense Details</h2>
+              <button
+                onClick={() => { setShowExpenseModal(false); setSelectedExpense(null); }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="font-medium">${selectedExpense.amount}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Category</p>
+                  <p className="font-medium">{selectedExpense.category}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Date</p>
+                  <p className="font-medium">{new Date(selectedExpense.date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Status</p>
+                  <p className={`font-medium ${getStatusColor(selectedExpense.approvalStatus)}`}>{selectedExpense.approvalStatus}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Description</p>
+                <p className="font-medium">{selectedExpense.description}</p>
+              </div>
+              {selectedExpense.receiptUrl && (
+                <div>
+                  <p className="text-sm text-gray-600">Receipt</p>
+                  <a href={selectedExpense.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View Receipt</a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+// ChangePasswordPanel component
+function ChangePasswordPanel({ user, addNotification }) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [showForm, setShowForm] = useState(false);
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError('All fields are required.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await axios.post(`${API_BASE}/auth/change-password`, {
+        currentPassword,
+        newPassword
+      });
+      setSuccess('Password changed successfully!');
+      addNotification('Password changed successfully!', 'success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowForm(false);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to change password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      {!showForm ? (
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          onClick={() => setShowForm(true)}
+        >
+          Change Password
+        </button>
+      ) : (
+        <form onSubmit={handleChangePassword} className="space-y-3 max-w-md mt-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Current Password</label>
+            <input type="password" className="mt-1 w-full border rounded px-3 py-2" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">New Password</label>
+            <input type="password" className="mt-1 w-full border rounded px-3 py-2" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
+            <input type="password" className="mt-1 w-full border rounded px-3 py-2" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+          </div>
+          {error && <div className="text-red-600 text-sm">{error}</div>}
+          {success && <div className="text-green-600 text-sm">{success}</div>}
+          <div className="flex gap-2">
+            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" disabled={loading}>
+              {loading ? 'Changing...' : 'Change Password'}
+            </button>
+            <button
+              type="button"
+              className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+              onClick={() => { setShowForm(false); setError(''); setSuccess(''); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
 
 export default FinanceDashboard; 

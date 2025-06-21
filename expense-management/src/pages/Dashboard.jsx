@@ -304,7 +304,7 @@ const Dashboard = () => {
               >
                   {transformedExpensesByCategory.map((entry, index) => (
                     (<Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />)
-                  ))}
+                ))}
               </Pie>
                 <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
             </RechartsPieChart>
@@ -337,7 +337,7 @@ const Dashboard = () => {
               <li className="py-3 text-gray-500">No recent activity found.</li>
             )}
           </ul>
-        </div>
+      </div>
     </div>
   );
   };
@@ -375,7 +375,7 @@ const Dashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -393,7 +393,7 @@ const Dashboard = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getCategoryDisplay(expense.category)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(expense.date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
                       {expense.approvalStatus}
@@ -1175,8 +1175,8 @@ const Dashboard = () => {
                     <p className="font-medium">{getCategoryDisplay(selectedExpense.category)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Date</p>
-                    <p className="font-medium">{new Date(selectedExpense.date).toLocaleDateString()}</p>
+                    <p className="text-sm text-gray-600">Created At</p>
+                    <p className="font-medium">{selectedExpense.createdAt ? new Date(selectedExpense.createdAt).toLocaleString() : '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Status</p>

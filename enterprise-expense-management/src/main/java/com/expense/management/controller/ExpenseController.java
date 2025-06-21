@@ -138,6 +138,7 @@ public class ExpenseController {
 		    expenseData.put("comments", expense.getComments());
 		    expenseData.put("priority", expense.getPriority());
 		    expenseData.put("receiptUrl", expense.getReceiptUrl());
+		    expenseData.put("createdAt", expense.getCreatedAt());
 		    
 		    response.put("expense", expenseData);
 		    
@@ -400,7 +401,7 @@ public class ExpenseController {
         User manager = userRepository.findByEmail(email).orElse(null);
         if (manager == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+    	}
         List<Expense> processed = expenseRepository.findByApprovedByManagerId(manager.getId());
         // Return clean expense data with user info
         List<Map<String, Object>> cleanExpenses = processed.stream()
@@ -417,6 +418,7 @@ public class ExpenseController {
                 cleanExpense.put("comments", expense.getComments());
                 cleanExpense.put("attachmentType", expense.getAttachmentType());
                 cleanExpense.put("receiptUrl", expense.getReceiptUrl());
+                cleanExpense.put("createdAt", expense.getCreatedAt());
                 // Add user information
                 if (expense.getUser() != null) {
                     Map<String, Object> userInfo = new HashMap<>();
@@ -491,6 +493,7 @@ public class ExpenseController {
                 cleanExpense.put("comments", expense.getComments());
                 cleanExpense.put("attachmentType", expense.getAttachmentType());
                 cleanExpense.put("receiptUrl", expense.getReceiptUrl());
+                cleanExpense.put("createdAt", expense.getCreatedAt());
                 // Add user information
                 if (expense.getUser() != null) {
                     Map<String, Object> userInfo = new HashMap<>();
@@ -521,6 +524,7 @@ public class ExpenseController {
                     cleanExpense.put("comments", expense.getComments());
                     cleanExpense.put("attachmentType", expense.getAttachmentType());
                     cleanExpense.put("receiptUrl", expense.getReceiptUrl());
+                    cleanExpense.put("createdAt", expense.getCreatedAt());
 
                     // Add user information without circular reference
                     if (expense.getUser() != null) {
@@ -1031,6 +1035,152 @@ public class ExpenseController {
 
         document.close();
         return baos.toByteArray();
+    }
+
+    /**
+     * Export all expenses (for managers and admins)
+     */
+    @GetMapping("/export-all/{format}")
+    public ResponseEntity<byte[]> exportAllExpenses(@PathVariable String format) {
+        try {
+            // Get current user
+            String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            com.expense.management.model.User user = userRepository.findByEmail(userEmail).orElse(null);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found".getBytes());
+            }
+            
+            // Check if user has manager, admin, or finance role
+            if (user.getRole() == null || (!user.getRole().getName().equals("ROLE_MANAGER") && 
+                !user.getRole().getName().equals("ROLE_ADMIN") && 
+                !user.getRole().getName().equals("ROLE_FINANCE"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied. Manager, Admin, or Finance role required.".getBytes());
+            }
+            
+            // Get all expenses from all users
+            List<Expense> allExpenses = expenseService.getAll();
+            // Only include PENDING, APPROVED, or REJECTED
+            allExpenses = allExpenses.stream()
+                .filter(e -> Arrays.asList(ExpenseStatus.PENDING, ExpenseStatus.APPROVED, ExpenseStatus.REJECTED)
+                    .contains(e.getApprovalStatus()))
+                .collect(Collectors.toList());
+            
+            if (format.equalsIgnoreCase("pdf")) {
+                byte[] pdfBytes = generateAllExpensesPdfReport(allExpenses);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=all_expenses_report.pdf")
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .body(pdfBytes);
+            } else if (format.equalsIgnoreCase("xlsx")) {
+                byte[] excelBytes = generateAllExpensesExcelReport(allExpenses);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=all_expenses_report.xlsx")
+                        .contentType(MediaType
+                                .parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                        .body(excelBytes);
+            } else {
+                return ResponseEntity.badRequest().body("Unsupported format".getBytes());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error generating report".getBytes());
+        }
+    }
+
+    private byte[] generateAllExpensesPdfReport(List<Expense> expenses) throws DocumentException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Document document = new Document();
+        PdfWriter.getInstance(document, baos);
+        
+        document.open();
+        
+        // Add title
+        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+        Paragraph title = new Paragraph("All Expenses Report", titleFont);
+        title.setAlignment(Element.ALIGN_CENTER);
+        document.add(title);
+        document.add(new Paragraph(" ")); // Spacing
+        
+        // Add date
+        Font dateFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
+        Paragraph date = new Paragraph(
+                "Generated on: " + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")), dateFont);
+        document.add(date);
+        document.add(new Paragraph(" ")); // Spacing
+        
+        // Create table with user information
+        PdfPTable table = new PdfPTable(6);
+        table.setWidthPercentage(100);
+        
+        // Add headers
+        Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
+        String[] headers = { "Date", "Employee", "Category", "Description", "Amount", "Status" };
+        for (String header : headers) {
+            PdfPCell cell = new PdfPCell(new Phrase(header, headerFont));
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setPadding(5);
+            table.addCell(cell);
+        }
+        
+        // Add data
+        Font dataFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
+        double totalAmount = 0;
+        for (Expense expense : expenses) {
+            String employeeName = expense.getUser() != null ? expense.getUser().getFullName() : "Unknown";
+            table.addCell(new PdfPCell(new Phrase(expense.getDate().toString(), dataFont)));
+            table.addCell(new PdfPCell(new Phrase(employeeName, dataFont)));
+            table.addCell(new PdfPCell(new Phrase(expense.getCategory(), dataFont)));
+            table.addCell(new PdfPCell(new Phrase(expense.getDescription(), dataFont)));
+            table.addCell(new PdfPCell(new Phrase("$" + String.format("%.2f", expense.getAmount()), dataFont)));
+            table.addCell(new PdfPCell(new Phrase(expense.getApprovalStatus().toString(), dataFont)));
+            totalAmount += expense.getAmount();
+        }
+        
+        document.add(table);
+        document.add(new Paragraph(" ")); // Spacing
+        
+        // Add total
+        Font totalFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
+        Paragraph total = new Paragraph("Total Amount: $" + String.format("%.2f", totalAmount), totalFont);
+        document.add(total);
+        
+        document.close();
+        return baos.toByteArray();
+    }
+
+    private byte[] generateAllExpensesExcelReport(List<Expense> expenses) throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("All Expenses");
+            int rowIdx = 0;
+            // Header
+            Row header = sheet.createRow(rowIdx++);
+            String[] columns = { "Date", "Employee", "Category", "Description", "Amount", "Status" };
+            for (int i = 0; i < columns.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(columns[i]);
+            }
+            // Data
+            for (Expense expense : expenses) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(expense.getDate() != null ? expense.getDate().toString() : "");
+                row.createCell(1).setCellValue(expense.getUser() != null ? expense.getUser().getFullName() : "Unknown");
+                row.createCell(2).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
+                row.createCell(3).setCellValue(expense.getDescription() != null ? expense.getDescription() : "");
+                row.createCell(4).setCellValue(expense.getAmount());
+                row.createCell(5).setCellValue(
+                        expense.getApprovalStatus() != null ? expense.getApprovalStatus().toString() : "");
+            }
+            // Autosize columns
+            for (int i = 0; i < columns.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            // Write to byte array
+            try (java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+                workbook.write(bos);
+                return bos.toByteArray();
+            }
+        }
     }
 
 }

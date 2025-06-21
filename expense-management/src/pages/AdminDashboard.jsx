@@ -35,6 +35,11 @@ import api from '../utils/axios';
 
 const API_BASE = 'http://localhost:8080';
 
+// Defensive helpers
+const safeNumber = (val) => (typeof val === 'number' && !isNaN(val) ? val : 0);
+const safeToLocaleString = (val) => safeNumber(val).toLocaleString();
+const safeArray = (val) => Array.isArray(val) ? val : [];
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,8 +61,47 @@ const AdminDashboard = () => {
   const [error, setError] = useState(null);
   const [processedByAdminExpenses, setProcessedByAdminExpenses] = useState([]);
 
+  // New state for overview year
+  const [overviewYear, setOverviewYear] = useState(new Date().getFullYear());
+
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  // Helper to parse year and month from key
+  const parseYearMonth = (key) => {
+    if (/^\d{4}-\d{2}$/.test(key)) {
+      const [year, month] = key.split('-');
+      return { year: Number(year), month: Number(month) };
+    }
+    return { year: null, month: Number(key) };
+  };
+
+  // Get available years from monthlyExpenses keys
+  const availableOverviewYears = Array.from(
+    new Set(
+      Object.keys(dashboardData?.monthlyExpenses || {})
+        .map((key) => parseYearMonth(key).year)
+        .filter((year) => !!year)
+    )
+  ).sort((a, b) => b - a);
+
+  // Transform and filter monthlyExpenses for selected year
+  const transformedMonthlyExpenses = Object.entries(dashboardData?.monthlyExpenses || {})
+    .map(([key, amount]) => {
+      const { year, month } = parseYearMonth(key);
+      return { year, month, amount: safeNumber(amount) };
+    })
+    .filter((entry) => entry.year === overviewYear)
+    .sort((a, b) => a.month - b.month);
+
+  const PENDING_DAYS_THRESHOLD = 7;
+  const now = new Date();
+  const pendingLong = expenses.filter(e => {
+    if (!e.createdAt || e.approvalStatus?.toUpperCase() !== 'PENDING') return false;
+    const submitted = new Date(e.createdAt);
+    const diffDays = Math.floor((now - submitted) / (1000 * 60 * 60 * 24));
+    return diffDays > PENDING_DAYS_THRESHOLD;
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -144,18 +188,13 @@ const AdminDashboard = () => {
     statusCounts: {},
   };
 
-  // Defensive helpers
-  const safeNumber = (val) => (typeof val === 'number' && !isNaN(val) ? val : 0);
-  const safeToLocaleString = (val) => safeNumber(val).toLocaleString();
-  const safeArray = (val) => Array.isArray(val) ? val : [];
-
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'Approved': return 'text-green-600 bg-green-100';
-      case 'Pending': return 'text-yellow-600 bg-yellow-100';
-      case 'Rejected': return 'text-red-600 bg-red-100';
-      case 'Active': return 'text-green-600 bg-green-100';
-      case 'Inactive': return 'text-gray-600 bg-gray-100';
+    switch (status?.toUpperCase()) {
+      case 'APPROVED': return 'text-green-600 bg-green-100';
+      case 'PENDING': return 'text-yellow-600 bg-yellow-100';
+      case 'REJECTED': return 'text-red-600 bg-red-100';
+      case 'ACTIVE': return 'text-green-600 bg-green-100';
+      case 'INACTIVE': return 'text-gray-600 bg-gray-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -305,8 +344,8 @@ const AdminDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.totalExpenses)}</p>
+              <p className="text-sm font-medium text-gray-600">Total Approved Expenses</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.approvedExpenses)}</p>
             </div>
             <Receipt className="h-8 w-8 text-green-500" />
           </div>
@@ -315,18 +354,18 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.pendingApprovals)}</p>
+              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.statusCounts?.PENDING || 0)}</p>
             </div>
             <Clock className="h-8 w-8 text-yellow-500" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Monthly Spend</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.monthlySpend)}</p>
+              <p className="text-sm font-medium text-gray-600">Rejected Expenses</p>
+              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.rejectedExpenses)}</p>
             </div>
-            <DollarSign className="h-8 w-8 text-purple-500" />
+            <XCircle className="h-8 w-8 text-red-500" />
           </div>
         </div>
       </div>
@@ -334,13 +373,27 @@ const AdminDashboard = () => {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Monthly Expense Trends</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Monthly Expense Trends</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Year:</span>
+              <select
+                value={overviewYear}
+                onChange={e => setOverviewYear(Number(e.target.value))}
+                className="border rounded px-2 py-1"
+              >
+                {availableOverviewYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={safeArray(Object.entries(dashboardData.monthlyExpenses || {}).map(([month, amount]) => ({ month, amount })))}>
+            <LineChart data={transformedMonthlyExpenses}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
+              <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
               <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -359,7 +412,7 @@ const AdminDashboard = () => {
                 label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
               >
                 {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"][index % 5]} />
+                  <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />
                 ))}
               </Pie>
               <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
@@ -382,7 +435,7 @@ const AdminDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -390,7 +443,7 @@ const AdminDashboard = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {expenses.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                     No expenses pending admin approval.
                   </td>
                 </tr>
@@ -402,12 +455,20 @@ const AdminDashboard = () => {
                     </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleExpenseAction('view', expense)}
+                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                          title="View"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </button>
                         <button 
                           onClick={() => handleExpenseAction('approve', expense)}
                           className="text-green-600 hover:text-green-900 flex items-center gap-1"
@@ -513,178 +574,211 @@ const AdminDashboard = () => {
     </div>
   );
 
-  const renderExpenseManagement = () => (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-xl font-semibold">Expense Management</h2>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
-          </button>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Advanced Filters
-          </button>
-        </div>
-      </div>
+  const renderExpenseManagement = () => {
+    const approvedThisMonth = processedByAdminExpenses.filter(e => {
+      if (!e.date || e.approvalStatus !== 'APPROVED') return false;
+      const d = new Date(e.date);
+      const now = new Date();
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
 
-      {/* Expense Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
-              <p className="text-2xl font-bold text-yellow-600">156</p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-500" />
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 className="text-xl font-semibold">Expense Management</h2>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Export Report
+            </button>
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Advanced Filters
+            </button>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Approved This Month</p>
-              <p className="text-2xl font-bold text-green-600">1,247</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Amount</p>
-              <p className="text-2xl font-bold text-blue-600">$284,750</p>
-            </div>
-            <DollarSign className="h-8 w-8 text-blue-500" />
-          </div>
-        </div>
-      </div>
 
-      {/* Expense Table: Pending Admin Approval */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Expenses Approved by Finance, Pending Admin Approval</h3>
+        {/* Expense Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
+                <p className="text-2xl font-bold text-yellow-600">{expenses.filter(e => e.approvalStatus?.toUpperCase() === 'PENDING' && e.createdAt).length}</p>
+              </div>
+              <Clock className="h-8 w-8 text-yellow-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Approved This Month</p>
+                <p className="text-2xl font-bold text-green-600">{approvedThisMonth}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending {'>'} {PENDING_DAYS_THRESHOLD} Days</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-bold text-red-600 cursor-pointer">
+                    {pendingLong.length}
+                  </p>
+                  <AlertCircle className="h-8 w-8 text-red-500" />
+                </div>
+                {pendingLong.length > 0 && (
+                  <div className="mt-2 text-xs text-gray-700">
+                    {pendingLong.slice(0, 3).map((e, idx) => (
+                      <span key={e.id || idx} className="block truncate">
+                        {e.user?.fullName || e.user?.email || 'Unknown User'}
+                      </span>
+                    ))}
+                    {pendingLong.length > 3 && (
+                      <span className="block text-gray-500">+{pendingLong.length - 3} more</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {expenses.length === 0 ? (
+
+        {/* Expense Table: Pending Admin Approval */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold">Expenses Approved by Finance, Pending Admin Approval</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                    No expenses pending admin approval.
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
-              ) : (
-                expenses.map((expense) => (
-                <tr key={expense.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                    </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleExpenseAction('approve', expense)}
-                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                          title="Approve"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          Approve
-                          </button>
-                          <button 
-                            onClick={() => handleExpenseAction('reject', expense)}
-                          className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                          title="Reject"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          Reject
-                          </button>
-                      </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {expenses.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                      No expenses pending admin approval.
                     </td>
                   </tr>
-                ))
-                      )}
-            </tbody>
-          </table>
-                    </div>
-      </div>
-
-      {/* Processed Expenses Table */}
-      <div className="bg-white rounded-lg shadow mt-8">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Processed Expenses (Approved/Rejected by You)</h3>
-          <p className="text-sm text-gray-600 mt-2">
-            These are expenses you have already approved or rejected. You can track their progress through the workflow.
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {processedByAdminExpenses.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                    No processed expenses found.
-                  </td>
-                </tr>
-              ) : (
-                processedByAdminExpenses.map((expense) => {
-                  let statusLabel = '';
-                  if (expense.approvalStatus === 'APPROVED') {
-                    statusLabel = 'Fully Approved';
-                  } else if (expense.approvalStatus === 'REJECTED') {
-                    statusLabel = 'Rejected';
-                  } else {
-                    statusLabel = expense.approvalStatus;
-                  }
-                  return (
-                    <tr key={expense.id} className="hover:bg-gray-50">
+                ) : (
+                  expenses.map((expense) => (
+                  <tr key={expense.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.date}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
-                          {statusLabel}
-                        </span>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                            <button 
+                              onClick={() => handleExpenseAction('view', expense)}
+                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                            title="View"
+                            >
+                              <Eye className="h-4 w-4" />
+                            View
+                            </button>
+                            <button 
+                              onClick={() => handleExpenseAction('approve', expense)}
+                            className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                            title="Approve"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            Approve
+                            </button>
+                            <button 
+                              onClick={() => handleExpenseAction('reject', expense)}
+                            className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                            title="Reject"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            Reject
+                            </button>
+                        </div>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                        )}
+              </tbody>
+            </table>
+                      </div>
+        </div>
+
+        {/* Processed Expenses Table */}
+        <div className="bg-white rounded-lg shadow mt-8">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold">Processed Expenses (Approved/Rejected by You)</h3>
+            <p className="text-sm text-gray-600 mt-2">
+              These are expenses you have already approved or rejected. You can track their progress through the workflow.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {processedByAdminExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                      No processed expenses found.
+                    </td>
+                  </tr>
+                ) : (
+                  processedByAdminExpenses.map((expense) => {
+                    let statusLabel = '';
+                    if (expense.approvalStatus === 'APPROVED') {
+                      statusLabel = 'Fully Approved';
+                    } else if (expense.approvalStatus === 'REJECTED') {
+                      statusLabel = 'Rejected';
+                    } else {
+                      statusLabel = expense.approvalStatus;
+                    }
+                    return (
+                      <tr key={expense.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                            {statusLabel}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderAnalytics = () => (
     <div className="space-y-6">
@@ -1117,7 +1211,7 @@ const AdminDashboard = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
-                  <p className="text-sm text-gray-900">{selectedExpense.employee}</p>
+                  <p className="text-sm text-gray-900">{selectedExpense.user?.fullName || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -1130,12 +1224,6 @@ const AdminDashboard = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <p className="text-sm text-gray-900">{selectedExpense.date}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedExpense.status)}`}>
-                    {selectedExpense.status}
-                  </span>
                 </div>
                 {selectedExpense.receiptUrl && (
                   <div>

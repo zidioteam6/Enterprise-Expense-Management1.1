@@ -7,6 +7,7 @@ import lombok.Data;
 
 @Data
 public class DashboardDTO {
+    private long totalUsers;
     private double totalExpenses;
     private double pendingExpenses;
     private double approvedExpenses;
@@ -17,6 +18,9 @@ public class DashboardDTO {
     private Map<String, Integer> statusCounts;
     
     // Getters and Setters for DashboardDTO
+    public long getTotalUsers() { return totalUsers; }
+    public void setTotalUsers(long totalUsers) { this.totalUsers = totalUsers; }
+
     public double getTotalExpenses() { return totalExpenses; }
     public void setTotalExpenses(double totalExpenses) { this.totalExpenses = totalExpenses; }
     

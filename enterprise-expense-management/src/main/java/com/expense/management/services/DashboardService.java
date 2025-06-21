@@ -15,6 +15,7 @@ import com.expense.management.dto.DashboardDTO.ExpenseSummaryDTO;
 import com.expense.management.model.Expense;
 import com.expense.management.model.ExpenseStatus;
 import com.expense.management.repository.ExpenseRepository;
+import com.expense.management.repository.UserRepository;
 
 @Service
 public class DashboardService {
@@ -22,9 +23,15 @@ public class DashboardService {
     @Autowired
     private ExpenseRepository expenseRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     public DashboardDTO getDashboardData() {
         List<Expense> allExpenses = expenseRepository.findAll();
         DashboardDTO dashboard = new DashboardDTO();
+
+        // set total users
+        dashboard.setTotalUsers(userRepository.count());
 
         // Calculate total expenses
         dashboard.setTotalExpenses(allExpenses.stream()

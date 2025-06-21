@@ -35,7 +35,8 @@ CREATE TABLE expenses (
     approval_status ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
     priority VARCHAR(20),
     attachment TINYBLOB,
-    attachment_type VARCHAR(255)
+    attachment_type VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create expense_approvals table

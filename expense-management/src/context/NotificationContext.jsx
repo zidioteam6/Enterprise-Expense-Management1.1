@@ -89,9 +89,9 @@ export const NotificationProvider = ({ children }) => {
   const removeNotification = useCallback(async (id) => {
     try {
       await api.delete(`/notifications/${id}`);
-      setNotifications(prevNotifications => 
-        prevNotifications.filter(notification => notification.id !== id)
-      );
+    setNotifications(prevNotifications => 
+      prevNotifications.filter(notification => notification.id !== id)
+    );
     } catch (error) {
       console.error('Failed to delete notification:', error);
     }
@@ -110,7 +110,7 @@ export const NotificationProvider = ({ children }) => {
         api.delete(`/notifications/${notification.id}`)
       );
       await Promise.all(deletePromises);
-      setNotifications([]);
+    setNotifications([]);
     } catch (error) {
       console.error('Failed to clear notifications:', error);
     }

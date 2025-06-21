@@ -88,7 +88,7 @@ api.interceptors.response.use(
       if (method === 'get' || errorData?.redirect === '/login') {
         console.log('Redirecting to login page due to authentication error');
         setTimeout(() => {
-          window.location.href = '/login';
+      window.location.href = '/login';
         }, 1000); // Small delay to show the message
       } else {
         // For PUT/POST/PATCH, just reject the error and let the component handle it
