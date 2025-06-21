@@ -240,7 +240,7 @@ public class ExpenseController {
         
         try {
             // Use Spring Data JPA repository instead of HibernateUtil
-            Expense expense = expenseRepository.findById(expenseId).orElse(null);
+            Expense expense = expenseRepository.findByIdWithUser(expenseId).orElse(null);
             
             System.out.println("Found expense: " + (expense != null ? "YES" : "NO"));
             if (expense != null) {
@@ -689,7 +689,7 @@ public class ExpenseController {
     public ResponseEntity<?> updateExpense(@PathVariable Long expenseId, @RequestBody Map<String, Object> updates) {
         try {
             String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-            Expense expense = expenseRepository.findById(expenseId).orElse(null);
+            Expense expense = expenseRepository.findByIdWithUser(expenseId).orElse(null);
             if (expense == null) {
                 Map<String, String> response = new HashMap<>();
                 response.put("message", "Expense not found.");

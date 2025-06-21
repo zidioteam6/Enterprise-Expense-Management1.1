@@ -60,7 +60,7 @@ const Dashboard = () => {
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { notifications, addNotification, removeNotification, clearNotifications } = useNotification();
+  const { notifications, addNotification, removeNotification, clearNotifications, markAsRead } = useNotification();
 
   // Define a mapping for categories with emojis
   const categoryEmojis = {
@@ -1033,9 +1033,9 @@ const Dashboard = () => {
                   className="p-2 text-gray-400 hover:text-gray-600 relative"
                 >
                   <Bell className="h-6 w-6" />
-                  {notifications?.length > 0 && (
+                  {notifications?.filter(n => !n.isRead).length > 0 && (
                     <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {notifications.length}
+                      {notifications.filter(n => !n.isRead).length}
                     </span>
                   )}
                 </button>
@@ -1048,13 +1048,28 @@ const Dashboard = () => {
                       )}
                     </div>
                     <div className="max-h-64 overflow-y-auto">
-                      {[...notifications].slice().reverse().map((notification) => (
-                        <div key={notification.id} className="p-3 border-b hover:bg-gray-50 flex justify-between items-center">
-                          <div>
-                            <p className="text-sm text-gray-900">{notification.message}</p>
-                            <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                      {notifications
+                        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                        .map((notification) => (
+                        <div key={notification.id} className={`p-3 border-b hover:bg-gray-50 flex justify-between items-center ${!notification.isRead ? 'bg-blue-50' : ''}`}>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                            <p className="text-sm text-gray-600">{notification.message}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(notification.createdAt).toLocaleString()}
+                            </p>
                           </div>
-                          <button onClick={() => removeNotification(notification.id)} className="ml-2 text-gray-400 hover:text-red-500">&times;</button>
+                          <div className="flex items-center gap-2">
+                            {!notification.isRead && (
+                              <button 
+                                onClick={() => markAsRead(notification.id)} 
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                Mark read
+                              </button>
+                            )}
+                            <button onClick={() => removeNotification(notification.id)} className="text-gray-400 hover:text-red-500">&times;</button>
+                          </div>
                         </div>
                       ))}
                       {notifications?.length === 0 && (

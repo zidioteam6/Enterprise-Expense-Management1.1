@@ -99,8 +99,31 @@ export const AuthProvider = ({ children }) => {
     const interceptor = api.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          const errorData = error.response?.data;
+          
+          // Show user-friendly message if available
+          if (errorData?.message) {
+            console.warn('Authentication error:', errorData.message);
+            
+            // Show a brief notification to the user
+            if (typeof window !== 'undefined' && window.showNotification) {
+              window.showNotification(errorData.message, 'error');
+            } else {
+              // Fallback alert
+              alert(errorData.message);
+            }
+          }
+          
+          // Clear authentication and redirect
           logout();
+          
+          // Redirect to login if not already there
+          if (window.location.pathname !== '/login') {
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 1000);
+          }
         }
         return Promise.reject(error);
       }
@@ -130,7 +153,8 @@ export const AuthProvider = ({ children }) => {
       return response.data;
     } catch (error) {
       console.error('AuthContext.login: Login error:', error);
-      throw new Error(error.response?.data?.message || 'Login failed');
+      const errorMessage = error.response?.data?.message || 'Login failed';
+      throw new Error(errorMessage);
     }
   };
 
@@ -140,7 +164,8 @@ export const AuthProvider = ({ children }) => {
       return response.data;
     } catch (error) {
       console.error('Signup error:', error.response?.data || error);
-      throw new Error(error.response?.data?.message || 'Signup failed. Please try again.');
+      const errorMessage = error.response?.data?.message || 'Signup failed. Please try again.';
+      throw new Error(errorMessage);
     }
   };
 

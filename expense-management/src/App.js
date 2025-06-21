@@ -8,6 +8,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import FinanceDashboard from './pages/FinanceDashboard';
+import './utils/notification';
 import './App.css';
 
 function App() {

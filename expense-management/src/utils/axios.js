@@ -56,25 +56,44 @@ api.interceptors.response.use(
     console.error('Error method:', error.config?.method);
     console.error('===================');
     
-    // Don't auto-redirect on DELETE requests - let the component handle the error
-    if (error.config?.method?.toLowerCase() === 'delete') {
-      console.log('DELETE request failed, not redirecting automatically');
-      return Promise.reject(error);
-    }
-    
-    // Only redirect to login on 401 for GET requests
-    if (error.response?.status === 401) {
+    // Handle authentication errors
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      const errorData = error.response?.data;
       const method = error.config?.method?.toLowerCase();
-      if (method === 'get') {
+      
+      // Show user-friendly message if available
+      if (errorData?.message) {
+        console.warn('Authentication error:', errorData.message);
+        
+        // Show a brief notification to the user
+        if (typeof window !== 'undefined' && window.showNotification) {
+          window.showNotification(errorData.message, 'error');
+        } else {
+          // Fallback alert
+          alert(errorData.message);
+        }
+      }
+      
+      // Clear authentication data
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      
+      // Don't auto-redirect on DELETE requests - let the component handle the error
+      if (method === 'delete') {
+        console.log('DELETE request failed, not redirecting automatically');
+        return Promise.reject(error);
+      }
+      
+      // Only redirect to login on GET requests or if explicitly requested
+      if (method === 'get' || errorData?.redirect === '/login') {
+        console.log('Redirecting to login page due to authentication error');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1000); // Small delay to show the message
       } else {
         // For PUT/POST/PATCH, just reject the error and let the component handle it
         return Promise.reject(error);
       }
-    } else if (error.response?.status === 403) {
-      window.location.href = '/dashboard';
     }
     
     return Promise.reject(error);

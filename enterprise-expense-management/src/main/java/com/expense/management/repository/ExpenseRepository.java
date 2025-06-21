@@ -12,6 +12,7 @@ import com.expense.management.model.User;
 import com.expense.management.enums.ApprovalLevel;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
@@ -37,5 +38,9 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
     // Find all expenses processed by a specific manager
     List<Expense> findByApprovedByManagerId(Long managerId);
+
+    // Custom query to fetch expense with user relationship eagerly loaded
+    @Query("SELECT e FROM Expense e LEFT JOIN FETCH e.user WHERE e.id = :id")
+    Optional<Expense> findByIdWithUser(@Param("id") Long id);
 
 }

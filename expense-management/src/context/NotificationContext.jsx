@@ -1,39 +1,100 @@
 import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useAuth } from './AuthContext';
+import api from '../utils/axios';
 
 const NotificationContext = createContext(null);
 
 export const NotificationProvider = ({ children }) => {
-  // Load notifications from localStorage on mount
-  const [notifications, setNotifications] = useState(() => {
-    const stored = localStorage.getItem('notifications');
-    return stored ? JSON.parse(stored) : [];
-  }); // persistent for bell
-  const [toasts, setToasts] = useState([]); // temporary for tile
+  const { user, isAuthenticated } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Save notifications to localStorage whenever they change
+  // Fetch notifications from backend
+  const fetchNotifications = useCallback(async () => {
+    if (!isAuthenticated || !user) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.get('/notifications');
+      if (response.data) {
+        setNotifications(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, user]);
+
+  // Fetch notifications on mount and when user changes
   useEffect(() => {
-    localStorage.setItem('notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Poll for new notifications every 30 seconds
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [fetchNotifications, isAuthenticated, user]);
 
   // Add a notification (persistent for bell, temporary for toast)
   const addNotification = useCallback((message, type = 'info') => {
     const id = Date.now() + Math.random();
     const time = new Date().toLocaleTimeString();
     const newNotification = { id, message, type, time };
-    setNotifications(prevNotifications => [...prevNotifications, newNotification]);
+    
+    // Add to toasts for immediate display
     setToasts(prevToasts => [...prevToasts, newNotification]);
+    
     // Auto-dismiss toast after 3 seconds
     setTimeout(() => {
       setToasts(prevToasts => prevToasts.filter(toast => toast.id !== id));
     }, 3000);
   }, []);
 
+  // Mark notification as read
+  const markAsRead = useCallback(async (id) => {
+    try {
+      await api.put(`/notifications/${id}/read`);
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notification => 
+          notification.id === id ? { ...notification, isRead: true } : notification
+        )
+      );
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  }, []);
+
+  // Mark all notifications as read
+  const markAllAsRead = useCallback(async () => {
+    try {
+      await api.put('/notifications/read-all');
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notification => ({ ...notification, isRead: true }))
+      );
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+    }
+  }, []);
+
   // Remove a notification by id (from bell)
-  const removeNotification = useCallback((id) => {
-    setNotifications(prevNotifications => 
-      prevNotifications.filter(notification => notification.id !== id)
-    );
+  const removeNotification = useCallback(async (id) => {
+    try {
+      await api.delete(`/notifications/${id}`);
+      setNotifications(prevNotifications => 
+        prevNotifications.filter(notification => notification.id !== id)
+      );
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+    }
   }, []);
 
   // Remove a toast by id (from tile only)
@@ -41,14 +102,31 @@ export const NotificationProvider = ({ children }) => {
     setToasts(prevToasts => prevToasts.filter(toast => toast.id !== id));
   }, []);
 
-  // Clear all notifications (from bell and localStorage)
-  const clearNotifications = useCallback(() => {
-    setNotifications([]);
-    localStorage.removeItem('notifications');
-  }, []);
+  // Clear all notifications (from bell and backend)
+  const clearNotifications = useCallback(async () => {
+    try {
+      // Delete all notifications from backend
+      const deletePromises = notifications.map(notification => 
+        api.delete(`/notifications/${notification.id}`)
+      );
+      await Promise.all(deletePromises);
+      setNotifications([]);
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+    }
+  }, [notifications]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, addNotification, removeNotification, clearNotifications }}>
+    <NotificationContext.Provider value={{ 
+      notifications, 
+      addNotification, 
+      removeNotification, 
+      clearNotifications,
+      markAsRead,
+      markAllAsRead,
+      fetchNotifications,
+      loading
+    }}>
       {children}
       {/* Toast notifications (tiles) */}
       <div className="fixed top-4 right-4 z-[9999] space-y-3">

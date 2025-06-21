@@ -9,10 +9,15 @@ import com.expense.management.enums.ApprovalLevel;
 import com.expense.management.model.Expense;
 import com.expense.management.model.ExpenseStatus;
 import com.expense.management.repository.ExpenseRepository;
+import com.expense.management.repository.NotificationRepository;
+import com.expense.management.model.Notification;
+import com.expense.management.model.User;
 
 @Service
 public class ExpenseService {
 	ExpenseRepository expenseRepository;
+	@Autowired
+	NotificationRepository notificationRepository;
 
 	ExpenseService(ExpenseRepository expenseRepository) {
 		this.expenseRepository = expenseRepository;
@@ -37,19 +42,67 @@ public class ExpenseService {
 	}
 
 	public boolean approve(long id, Long managerId) {
-		Expense expense = expenseRepository.findById(id).orElseThrow(() -> new RuntimeException("expense not found!"));
+		Expense expense = expenseRepository.findByIdWithUser(id)
+			.orElseThrow(() -> new RuntimeException("expense not found!"));
+		User expenseUser = expense.getUser();
+		
+		// Debug logging
+		System.out.println("=== EXPENSE APPROVAL DEBUG ===");
+		System.out.println("Expense ID: " + id);
+		System.out.println("Expense Description: " + expense.getDescription());
+		System.out.println("Expense User: " + (expenseUser != null ? expenseUser.getEmail() : "NULL"));
+		System.out.println("Manager ID: " + managerId);
+		System.out.println("Current Approval Level: " + expense.getApprovalLevel());
+		System.out.println("===============================");
+		
 		if (expense.getApprovalLevel() == ApprovalLevel.MANAGER) {
 			expense.setApprovalLevel(ApprovalLevel.FINANCE);
 			expense.setApprovedByManagerId(managerId);
 			expenseRepository.save(expense);
+			
+			// Create notification for the expense submitter
+			if (expenseUser != null) {
+				Notification notif = new Notification();
+				notif.setUser(expenseUser);
+				notif.setTitle("Expense Approved by Manager");
+				notif.setMessage("Manager approval for your expense '" + expense.getDescription() + "' is complete. Waiting for finance approval.");
+				notificationRepository.save(notif);
+				System.out.println("Notification created for user: " + expenseUser.getEmail());
+			} else {
+				System.out.println("WARNING: Expense user is null, cannot create notification!");
+			}
 			return true;
 		} else if (expense.getApprovalLevel() == ApprovalLevel.FINANCE) {
 			expense.setApprovalLevel(ApprovalLevel.ADMIN);
 			expenseRepository.save(expense);
+			
+			// Create notification for the expense submitter
+			if (expenseUser != null) {
+				Notification notif = new Notification();
+				notif.setUser(expenseUser);
+				notif.setTitle("Expense Approved by Finance");
+				notif.setMessage("Finance approval for your expense '" + expense.getDescription() + "' is complete. Waiting for admin approval.");
+				notificationRepository.save(notif);
+				System.out.println("Notification created for user: " + expenseUser.getEmail());
+			} else {
+				System.out.println("WARNING: Expense user is null, cannot create notification!");
+			}
 			return true;
 		} else if (expense.getApprovalLevel() == ApprovalLevel.ADMIN) {
 			expense.setApprovalStatus(ExpenseStatus.APPROVED);
 			expenseRepository.save(expense);
+			
+			// Create notification for the expense submitter
+			if (expenseUser != null) {
+				Notification notif = new Notification();
+				notif.setUser(expenseUser);
+				notif.setTitle("Expense Fully Approved");
+				notif.setMessage("Your expense '" + expense.getDescription() + "' is fully approved!");
+				notificationRepository.save(notif);
+				System.out.println("Notification created for user: " + expenseUser.getEmail());
+			} else {
+				System.out.println("WARNING: Expense user is null, cannot create notification!");
+			}
 			return true;
 		}
 		return false;
@@ -59,15 +112,51 @@ public class ExpenseService {
 	 * Reject expense - sets status to REJECTED
 	 */
 	public boolean reject(long id, Long managerId) {
-		Expense expense = expenseRepository.findById(id).orElseThrow(() -> new RuntimeException("expense not found!"));
+		Expense expense = expenseRepository.findByIdWithUser(id)
+			.orElseThrow(() -> new RuntimeException("expense not found!"));
+		User expenseUser = expense.getUser();
+		
+		// Debug logging
+		System.out.println("=== EXPENSE REJECTION DEBUG ===");
+		System.out.println("Expense ID: " + id);
+		System.out.println("Expense Description: " + expense.getDescription());
+		System.out.println("Expense User: " + (expenseUser != null ? expenseUser.getEmail() : "NULL"));
+		System.out.println("Manager ID: " + managerId);
+		System.out.println("Current Approval Level: " + expense.getApprovalLevel());
+		System.out.println("===============================");
+		
 		if (expense.getApprovalLevel() == ApprovalLevel.MANAGER) {
 			expense.setApprovalStatus(ExpenseStatus.REJECTED);
 			expense.setApprovedByManagerId(managerId);
 			expenseRepository.save(expense);
+			
+			// Create notification for the expense submitter
+			if (expenseUser != null) {
+				Notification notif = new Notification();
+				notif.setUser(expenseUser);
+				notif.setTitle("Expense Rejected");
+				notif.setMessage("Your expense '" + expense.getDescription() + "' has been rejected.");
+				notificationRepository.save(notif);
+				System.out.println("Notification created for user: " + expenseUser.getEmail());
+			} else {
+				System.out.println("WARNING: Expense user is null, cannot create notification!");
+			}
 			return true;
 		}
 		expense.setApprovalStatus(ExpenseStatus.REJECTED);
 		expenseRepository.save(expense);
+		
+		// Create notification for the expense submitter
+		if (expenseUser != null) {
+			Notification notif = new Notification();
+			notif.setUser(expenseUser);
+			notif.setTitle("Expense Rejected");
+			notif.setMessage("Your expense '" + expense.getDescription() + "' has been rejected.");
+			notificationRepository.save(notif);
+			System.out.println("Notification created for user: " + expenseUser.getEmail());
+		} else {
+			System.out.println("WARNING: Expense user is null, cannot create notification!");
+		}
 		return true;
 	}
 
