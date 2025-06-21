@@ -104,58 +104,58 @@ const AdminDashboard = () => {
   });
 
   // Move fetchData outside useEffect so it can be called elsewhere
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const token = localStorage.getItem('token');
-      const authHeader = { headers: { Authorization: `Bearer ${token}` } };
-      // Dashboard stats
-      const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, authHeader);
-      setDashboardData(dashboardRes.data);
-      // Get expenses pending admin approval only (approved by finance)
-      const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/admin`, authHeader);
-      setExpenses(expensesRes.data);
-      // Audit logs
-      const auditRes = await axios.get(`${API_BASE}/api/audit/logs`, authHeader);
-      setAuditLogs(auditRes.data);
-      // Budget
-      const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, authHeader);
-      setBudget(budgetRes.data.budget);
-      // Users (fetch from backend)
-      const usersRes = await axios.get(`${API_BASE}/api/auth/users`, authHeader);
-      setUsers(usersRes.data);
-      // Fetch processed by admin (fully approved and rejected)
-      const approvedRes = await axios.get(`${API_BASE}/api/expenses/approved`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem('token');
+        const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+        // Dashboard stats
+        const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, authHeader);
+        setDashboardData(dashboardRes.data);
+        // Get expenses pending admin approval only (approved by finance)
+        const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/admin`, authHeader);
+        setExpenses(expensesRes.data);
+        // Audit logs
+        const auditRes = await axios.get(`${API_BASE}/api/audit/logs`, authHeader);
+        setAuditLogs(auditRes.data);
+        // Budget
+        const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, authHeader);
+        setBudget(budgetRes.data.budget);
+        // Users (fetch from backend)
+        const usersRes = await axios.get(`${API_BASE}/api/auth/users`, authHeader);
+        setUsers(usersRes.data);
+        // Fetch processed by admin (fully approved and rejected)
+        const approvedRes = await axios.get(`${API_BASE}/api/expenses/approved`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        let approvedData = approvedRes.data;
+        if (typeof approvedData === 'string') {
+          try { approvedData = JSON.parse(approvedData); } catch { approvedData = []; }
         }
-      });
-      let approvedData = approvedRes.data;
-      if (typeof approvedData === 'string') {
-        try { approvedData = JSON.parse(approvedData); } catch { approvedData = []; }
-      }
-      if (!Array.isArray(approvedData)) approvedData = [];
+        if (!Array.isArray(approvedData)) approvedData = [];
       // Fetch rejected as well
       const rejectedRes = await axios.get(`${API_BASE}/api/expenses/rejected`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       let rejectedData = rejectedRes.data;
       if (typeof rejectedData === 'string') { try { rejectedData = JSON.parse(rejectedData); } catch { rejectedData = []; } }
       if (!Array.isArray(rejectedData)) rejectedData = [];
       const processedData = [...approvedData, ...rejectedData].map(expense => ({
-        ...expense,
-        user: expense.user ? {
-          id: expense.user.id,
-          email: expense.user.email,
-          fullName: expense.user.fullName
-        } : null
-      }));
-      setProcessedByAdminExpenses(processedData);
-    } catch (err) {
-      setError(err?.response?.data?.message || err.message || 'Failed to load admin dashboard data.');
-    } finally {
-      setLoading(false);
-    }
-  };
+          ...expense,
+          user: expense.user ? {
+            id: expense.user.id,
+            email: expense.user.email,
+            fullName: expense.user.fullName
+          } : null
+        }));
+        setProcessedByAdminExpenses(processedData);
+      } catch (err) {
+        setError(err?.response?.data?.message || err.message || 'Failed to load admin dashboard data.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
   useEffect(() => {
     fetchData();
@@ -442,46 +442,46 @@ const AdminDashboard = () => {
                     return (statusOrder[a.approvalStatus] || 99) - (statusOrder[b.approvalStatus] || 99);
                   })
                   .map((expense) => (
-                    <tr key={expense.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr key={expense.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                    </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs {safeToLocaleString(expense.amount)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleExpenseAction('view', expense)}
-                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                            title="View"
-                          >
-                            <Eye className="h-4 w-4" />
-                            View
-                          </button>
-                          <button 
-                            onClick={() => handleExpenseAction('approve', expense)}
-                            className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                            title="Approve"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                            Approve
-                          </button>
-                          <button 
-                            onClick={() => handleExpenseAction('reject', expense)}
-                            className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                            title="Reject"
-                          >
-                            <XCircle className="h-4 w-4" />
-                            Reject
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleExpenseAction('view', expense)}
+                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                          title="View"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </button>
+                        <button 
+                          onClick={() => handleExpenseAction('approve', expense)}
+                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                          title="Approve"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => handleExpenseAction('reject', expense)}
+                          className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                          title="Reject"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </button>
+                      </div>
+                  </td>
+                </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -576,44 +576,44 @@ const AdminDashboard = () => {
     }).length;
 
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xl font-semibold">Expense Management</h2>
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export Report
-            </button>
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Advanced Filters
-            </button>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-xl font-semibold">Expense Management</h2>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export Report
+          </button>
+          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Advanced Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Expense Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
+                <p className="text-2xl font-bold text-yellow-600">{expenses.filter(e => e.approvalStatus?.toUpperCase() === 'PENDING' && e.createdAt).length}</p>
+            </div>
+            <Clock className="h-8 w-8 text-yellow-500" />
           </div>
         </div>
-
-        {/* Expense Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
-                <p className="text-2xl font-bold text-yellow-600">{expenses.filter(e => e.approvalStatus?.toUpperCase() === 'PENDING' && e.createdAt).length}</p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-500" />
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Approved This Month</p>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Approved This Month</p>
                 <p className="text-2xl font-bold text-green-600">{approvedThisMonth}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
+            <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
+        </div>
           <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
-            <div className="flex items-center justify-between">
-              <div>
+          <div className="flex items-center justify-between">
+            <div>
                 <p className="text-sm font-medium text-gray-600">Pending {'>'} 7 Days</p>
                 <p className="text-2xl font-bold text-red-600">{pendingLong.length}</p>
                 {pendingLong.length > 0 && (
@@ -626,39 +626,39 @@ const AdminDashboard = () => {
                     {pendingLong.length > 3 && (
                       <span className="block text-gray-500">+{pendingLong.length - 3} more</span>
                     )}
-                  </div>
+            </div>
                 )}
               </div>
               <AlertCircle className="h-8 w-8 text-red-500" />
-            </div>
           </div>
         </div>
+      </div>
 
-        {/* Expense Table: Pending Admin Approval */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b">
-            <h3 className="text-lg font-semibold">Expenses Approved by Finance, Pending Admin Approval</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+      {/* Expense Table: Pending Admin Approval */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">Expenses Approved by Finance, Pending Admin Approval</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {expenses.length === 0 ? (
-                  <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {expenses.length === 0 ? (
+                <tr>
                     <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
-                      No expenses pending admin approval.
-                    </td>
-                  </tr>
-                ) : (
+                    No expenses pending admin approval.
+                  </td>
+                </tr>
+              ) : (
                   expenses
                     .slice() // Create a shallow copy to sort
                     .sort((a, b) => {
@@ -666,80 +666,80 @@ const AdminDashboard = () => {
                       return (statusOrder[a.approvalStatus] || 99) - (statusOrder[b.approvalStatus] || 99);
                     })
                     .map((expense) => (
-                      <tr key={expense.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr key={expense.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                    </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs {safeToLocaleString(expense.amount)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button 
-                              onClick={() => handleExpenseAction('view', expense)}
-                              className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                              title="View"
-                            >
-                              <Eye className="h-4 w-4" />
-                              View
-                            </button>
-                            <button 
-                              onClick={() => handleExpenseAction('approve', expense)}
-                              className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                              title="Approve"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              Approve
-                            </button>
-                            <button 
-                              onClick={() => handleExpenseAction('reject', expense)}
-                              className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                              title="Reject"
-                            >
-                              <XCircle className="h-4 w-4" />
-                              Reject
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Processed Expenses Table */}
-        <div className="bg-white rounded-lg shadow mt-8">
-          <div className="p-6 border-b">
-            <h3 className="text-lg font-semibold">Processed Expenses (Approved/Rejected by You)</h3>
-            <p className="text-sm text-gray-600 mt-2">
-              These are expenses you have already approved or rejected. You can track their progress through the workflow.
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {processedByAdminExpenses.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                      No processed expenses found.
+                  <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex space-x-2">
+                          <button 
+                            onClick={() => handleExpenseAction('view', expense)}
+                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                          title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          View
+                          </button>
+                          <button 
+                            onClick={() => handleExpenseAction('approve', expense)}
+                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                          title="Approve"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          Approve
+                          </button>
+                          <button 
+                            onClick={() => handleExpenseAction('reject', expense)}
+                          className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                          title="Reject"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          Reject
+                          </button>
+                      </div>
                     </td>
                   </tr>
-                ) : (
+                ))
+                      )}
+            </tbody>
+          </table>
+                    </div>
+      </div>
+
+      {/* Processed Expenses Table */}
+      <div className="bg-white rounded-lg shadow mt-8">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">Processed Expenses (Approved/Rejected by You)</h3>
+          <p className="text-sm text-gray-600 mt-2">
+            These are expenses you have already approved or rejected. You can track their progress through the workflow.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {processedByAdminExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                    No processed expenses found.
+                  </td>
+                </tr>
+              ) : (
                   processedByAdminExpenses
                     .slice() // Create a shallow copy to sort
                     .sort((a, b) => {
@@ -760,38 +760,38 @@ const AdminDashboard = () => {
                       return 0; // Keep original order for other statuses
                     })
                     .map((expense) => {
-                      let statusLabel = '';
-                      if (expense.approvalStatus === 'APPROVED') {
-                        statusLabel = 'Fully Approved';
-                      } else if (expense.approvalStatus === 'REJECTED') {
-                        statusLabel = 'Rejected';
-                      } else {
-                        statusLabel = expense.approvalStatus;
-                      }
-                      return (
-                        <tr key={expense.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  let statusLabel = '';
+                  if (expense.approvalStatus === 'APPROVED') {
+                    statusLabel = 'Fully Approved';
+                  } else if (expense.approvalStatus === 'REJECTED') {
+                    statusLabel = 'Rejected';
+                  } else {
+                    statusLabel = expense.approvalStatus;
+                  }
+                  return (
+                    <tr key={expense.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                          <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs {safeToLocaleString(expense.amount)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
-                              {statusLabel}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                )}
-              </tbody>
-            </table>
-          </div>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                          {statusLabel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
-    );
+    </div>
+  );
   };
 
   const renderAnalytics = () => (
