@@ -19,7 +19,7 @@ const ExpenseSummaryModal = ({ expense, onClose }) => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Amount</label>
-            <p className="mt-1 text-lg font-semibold">${expense.amount.toFixed(2)}</p>
+            <p className="mt-1 text-lg font-semibold">Rs{expense.amount.toFixed(2)}</p>
           </div>
 
           <div>

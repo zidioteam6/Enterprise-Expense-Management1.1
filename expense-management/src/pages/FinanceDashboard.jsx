@@ -316,7 +316,7 @@ const FinanceDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.approvedExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">Rs {safeToLocaleString(dashboardData.approvedExpenses)}</p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
@@ -364,7 +364,7 @@ const FinanceDashboard = () => {
               <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+                <Tooltip formatter={(value) => [`Rs${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
               <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -380,13 +380,13 @@ const FinanceDashboard = () => {
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
+                label={({ name, value }) => `${name}: Rs${safeToLocaleString(value)}`}
               >
                 {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+              <Tooltip formatter={(value) => [`Rs${safeToLocaleString(value)}`, 'Amount']} />
             </RechartsPieChart>
           </ResponsiveContainer>
         </div>
@@ -416,7 +416,7 @@ const FinanceDashboard = () => {
                     {expense.user ? (expense.user.fullName || `User ${expense.user.id}`) : 'Unknown User'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs{safeToLocaleString(expense.amount)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
@@ -504,7 +504,9 @@ const FinanceDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Approved Expenses</p>
-              <p className="text-2xl font-bold text-green-600">{safeToLocaleString(dashboardData.approvedExpenses)}</p>
+              <p className="text-2xl font-bold text-green-600">{
+                safeToLocaleString(processedByFinanceExpenses.filter(e => e.approvalStatus === 'APPROVED').length)
+              }</p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
@@ -588,7 +590,7 @@ const FinanceDashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs{safeToLocaleString(expense.amount)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
@@ -662,34 +664,40 @@ const FinanceDashboard = () => {
                   </td>
                 </tr>
               ) : (
-                processedByFinanceExpenses.map((expense) => {
-                  let statusLabel = '';
-                  if (expense.approvalStatus === 'PENDING' && expense.approvalLevel === 'ADMIN') {
-                    statusLabel = 'Admin Approval Pending';
-                  } else if (expense.approvalStatus === 'APPROVED') {
-                    statusLabel = 'Fully Approved';
-                  } else if (expense.approvalStatus === 'REJECTED') {
-                    statusLabel = 'Rejected';
-                  } else {
-                    statusLabel = expense.approvalStatus;
-                  }
-                  return (
-                    <tr key={expense.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
-                          {statusLabel}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
+                processedByFinanceExpenses
+                  .slice() // Create a shallow copy to sort
+                  .sort((a, b) => {
+                    const statusOrder = { PENDING: 1, APPROVED: 2, REJECTED: 3 };
+                    return (statusOrder[a.approvalStatus] || 99) - (statusOrder[b.approvalStatus] || 99);
+                  })
+                  .map((expense) => {
+                    let statusLabel = '';
+                    if (expense.approvalStatus === 'PENDING' && expense.approvalLevel === 'ADMIN') {
+                      statusLabel = 'Admin Approval Pending';
+                    } else if (expense.approvalStatus === 'APPROVED') {
+                      statusLabel = 'Fully Approved';
+                    } else if (expense.approvalStatus === 'REJECTED') {
+                      statusLabel = 'Rejected';
+                    } else {
+                      statusLabel = expense.approvalStatus;
+                    }
+                    return (
+                      <tr key={expense.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs{safeToLocaleString(expense.amount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                            {statusLabel}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
               )}
             </tbody>
           </table>
@@ -773,7 +781,7 @@ const FinanceDashboard = () => {
               <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+                <Tooltip formatter={(value) => [`Rs${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
                 <Bar dataKey="amount" fill="#3B82F6" />
             </BarChart>
           </ResponsiveContainer>
@@ -791,7 +799,7 @@ const FinanceDashboard = () => {
                     <span className="text-sm font-medium">{category.name}</span>
       </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold">${safeToLocaleString(category.amount)}</div>
+                    <div className="text-sm font-semibold">Rs{safeToLocaleString(category.amount)}</div>
                     <div className="text-xs text-gray-500">{safeToLocaleString(category.value)}%</div>
                   </div>
               </div>
@@ -1004,7 +1012,7 @@ const FinanceDashboard = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Amount</p>
-                  <p className="font-medium">${selectedExpense.amount}</p>
+                  <p className="font-medium">Rs{selectedExpense.amount}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Category</p>

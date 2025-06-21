@@ -210,7 +210,7 @@ export default function EmployeeExpense() {
 
                                         <td className="px-6 py-4">
                                             <div className="text-sm font-semibold text-gray-900">
-                                                ${expense.amount.toFixed(2)}
+                                                Rs{expense.amount.toFixed(2)}
                                             </div>
                                         </td>
 
@@ -304,7 +304,7 @@ export default function EmployeeExpense() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Amount ($)
+                                        Amount (Rs)
                                     </label>
                                     <input
                                         type="number"
@@ -392,7 +392,7 @@ export default function EmployeeExpense() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-500">Amount</label>
-                                    <p className="mt-1 text-sm text-gray-900 font-semibold">${selectedExpense.amount.toFixed(2)}</p>
+                                    <p className="mt-1 text-sm text-gray-900 font-semibold">Rs{selectedExpense.amount.toFixed(2)}</p>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-500">Date</label>

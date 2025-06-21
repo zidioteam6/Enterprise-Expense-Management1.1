@@ -332,7 +332,7 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Approved Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.approvedExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">Rs {safeToLocaleString(dashboardData.approvedExpenses)}</p>
             </div>
             <Receipt className="h-8 w-8 text-green-500" />
           </div>
@@ -380,7 +380,7 @@ const AdminDashboard = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+              <Tooltip formatter={(value) => [`Rs ${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
               <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -396,13 +396,13 @@ const AdminDashboard = () => {
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
+                label={({ name, value }) => `${name}: Rs ${safeToLocaleString(value)}`}
               >
                 {safeArray(Object.entries(dashboardData.expensesByCategory || {}).map(([name, value]) => ({ name, value }))).map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+              <Tooltip formatter={(value) => [`Rs${safeToLocaleString(value)}`, 'Amount']} />
             </RechartsPieChart>
           </ResponsiveContainer>
         </div>
@@ -435,47 +435,53 @@ const AdminDashboard = () => {
                   </td>
                 </tr>
               ) : (
-                expenses.map((expense) => (
-                <tr key={expense.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                    </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => handleExpenseAction('view', expense)}
-                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                          title="View"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View
-                        </button>
-                        <button 
-                          onClick={() => handleExpenseAction('approve', expense)}
-                          className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                          title="Approve"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          Approve
-                        </button>
-                        <button 
-                          onClick={() => handleExpenseAction('reject', expense)}
-                          className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                          title="Reject"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Reject
-                        </button>
-                      </div>
-                  </td>
-                </tr>
-                ))
+                expenses
+                  .slice() // Create a shallow copy to sort
+                  .sort((a, b) => {
+                    const statusOrder = { PENDING: 1, APPROVED: 2, REJECTED: 3 };
+                    return (statusOrder[a.approvalStatus] || 99) - (statusOrder[b.approvalStatus] || 99);
+                  })
+                  .map((expense) => (
+                    <tr key={expense.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs {safeToLocaleString(expense.amount)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <button 
+                            onClick={() => handleExpenseAction('view', expense)}
+                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </button>
+                          <button 
+                            onClick={() => handleExpenseAction('approve', expense)}
+                            className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                            title="Approve"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            Approve
+                          </button>
+                          <button 
+                            onClick={() => handleExpenseAction('reject', expense)}
+                            className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                            title="Reject"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
               )}
             </tbody>
           </table>
@@ -653,51 +659,57 @@ const AdminDashboard = () => {
                     </td>
                   </tr>
                 ) : (
-                  expenses.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                      </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
+                  expenses
+                    .slice() // Create a shallow copy to sort
+                    .sort((a, b) => {
+                      const statusOrder = { PENDING: 1, APPROVED: 2, REJECTED: 3 };
+                      return (statusOrder[a.approvalStatus] || 99) - (statusOrder[b.approvalStatus] || 99);
+                    })
+                    .map((expense) => (
+                      <tr key={expense.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs {safeToLocaleString(expense.amount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>{expense.approvalStatus}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
                             <button 
                               onClick={() => handleExpenseAction('view', expense)}
-                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                            title="View"
+                              className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                              title="View"
                             >
                               <Eye className="h-4 w-4" />
-                            View
+                              View
                             </button>
                             <button 
                               onClick={() => handleExpenseAction('approve', expense)}
-                            className="text-green-600 hover:text-green-900 flex items-center gap-1"
-                            title="Approve"
+                              className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                              title="Approve"
                             >
                               <CheckCircle className="h-4 w-4" />
-                            Approve
+                              Approve
                             </button>
                             <button 
                               onClick={() => handleExpenseAction('reject', expense)}
-                            className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                            title="Reject"
+                              className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                              title="Reject"
                             >
                               <XCircle className="h-4 w-4" />
-                            Reject
+                              Reject
                             </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                        )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
               </tbody>
             </table>
-                      </div>
+          </div>
         </div>
 
         {/* Processed Expenses Table */}
@@ -728,32 +740,51 @@ const AdminDashboard = () => {
                     </td>
                   </tr>
                 ) : (
-                  processedByAdminExpenses.map((expense) => {
-                    let statusLabel = '';
-                    if (expense.approvalStatus === 'APPROVED') {
-                      statusLabel = 'Fully Approved';
-                    } else if (expense.approvalStatus === 'REJECTED') {
-                      statusLabel = 'Rejected';
-                    } else {
-                      statusLabel = expense.approvalStatus;
-                    }
-                    return (
-                      <tr key={expense.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
-                            {statusLabel}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  processedByAdminExpenses
+                    .slice() // Create a shallow copy to sort
+                    .sort((a, b) => {
+                      const statusOrder = { PENDING: 1, APPROVED: 2, REJECTED: 3 };
+                      const statusA = statusOrder[a.approvalStatus];
+                      const statusB = statusOrder[b.approvalStatus];
+
+                      if (statusA !== statusB) {
+                        return (statusA || 99) - (statusB || 99);
+                      }
+
+                      if (a.approvalStatus === 'APPROVED') {
+                        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                        return dateB - dateA; // Newest to oldest
+                      }
+                      
+                      return 0; // Keep original order for other statuses
+                    })
+                    .map((expense) => {
+                      let statusLabel = '';
+                      if (expense.approvalStatus === 'APPROVED') {
+                        statusLabel = 'Fully Approved';
+                      } else if (expense.approvalStatus === 'REJECTED') {
+                        statusLabel = 'Rejected';
+                      } else {
+                        statusLabel = expense.approvalStatus;
+                      }
+                      return (
+                        <tr key={expense.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
+                          <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs {safeToLocaleString(expense.amount)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
+                              {statusLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                 )}
               </tbody>
             </table>
@@ -787,7 +818,7 @@ const AdminDashboard = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+              <Tooltip formatter={(value) => [`Rs${safeToLocaleString(value)}`, 'Amount']} />
               <Bar dataKey="amount" fill="#3B82F6" />
             </BarChart>
           </ResponsiveContainer>
@@ -806,7 +837,7 @@ const AdminDashboard = () => {
                   <span className="text-sm font-medium">{name}</span>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-semibold">${safeToLocaleString(value)}</div>
+                  <div className="text-sm font-semibold">Rs {safeToLocaleString(value)}</div>
                   <div className="text-xs text-gray-500">{safeToLocaleString(value / dashboardData.totalExpenses * 100)}%</div>
                 </div>
               </div>
@@ -1200,7 +1231,7 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                  <p className="text-sm text-gray-900">${safeToLocaleString(selectedExpense.amount)}</p>
+                  <p className="text-sm text-gray-900">Rs {safeToLocaleString(selectedExpense.amount)}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>

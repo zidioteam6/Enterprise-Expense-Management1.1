@@ -278,7 +278,7 @@ const Dashboard = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-              <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+              <Tooltip formatter={(value) => [`Rs ${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
               <Line type="monotone" dataKey="amount" stroke="#3B82F6" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -294,13 +294,13 @@ const Dashboard = () => {
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                  label={({ name, value }) => `${name}: $${safeToLocaleString(value)}`}
+                  label={({ name, value }) => `${name}: Rs ${safeToLocaleString(value)}`}
               >
                   {transformedExpensesByCategory.map((entry, index) => (
                     (<Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />)
                 ))}
               </Pie>
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} />
+                <Tooltip formatter={(value) => [`Rs ${safeToLocaleString(value)}`, 'Amount']} />
             </RechartsPieChart>
           </ResponsiveContainer>
         </div>
@@ -330,7 +330,7 @@ const Dashboard = () => {
                   <div className="text-sm text-gray-500">{getCategoryDisplay(expense.category)} &middot; {expense.createdAt ? new Date(expense.createdAt).toLocaleString() : (expense.date ? new Date(expense.date).toLocaleDateString() : '-')}</div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-semibold text-gray-700">${safeToLocaleString(expense.amount)}</span>
+                  <span className="text-sm font-semibold text-gray-700">Rs {safeToLocaleString(expense.amount)}</span>
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus || expense.status)}`}>
                     {expense.approvalStatus || expense.status}
                   </span>
@@ -406,7 +406,7 @@ const Dashboard = () => {
                 <tr key={expense.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{expense.description}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getCategoryDisplay(expense.category)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rs {safeToLocaleString(expense.amount)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.createdAt ? new Date(expense.createdAt).toLocaleString() : '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(expense.approvalStatus)}`}>
@@ -565,7 +565,7 @@ const Dashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tickFormatter={month => month} label={{ value: 'Month', position: 'insideBottom', offset: -5 }} />
                 <YAxis />
-                <Tooltip formatter={(value) => [`$${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
+                <Tooltip formatter={(value) => [`Rs ${safeToLocaleString(value)}`, 'Amount']} labelFormatter={label => `Month: ${label}`} />
                 <Bar dataKey="amount" fill="#3B82F6" />
               </BarChart>
             </ResponsiveContainer>
@@ -584,7 +584,7 @@ const Dashboard = () => {
                     <span className="text-sm font-medium">{category.name}</span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold">${safeToLocaleString(category.amount)}</div>
+                    <div className="text-sm font-semibold">Rs {safeToLocaleString(category.amount)}</div>
                     <div className="text-xs text-gray-500">{safeToLocaleString(category.value)}%</div>
                   </div>
                 </div>
@@ -1182,7 +1182,7 @@ const Dashboard = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Amount</p>
-                    <p className="font-medium">${selectedExpense.amount}</p>
+                    <p className="font-medium">Rs {selectedExpense.amount}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Category</p>

@@ -94,8 +94,15 @@ public class ExpenseService {
 				notif.setMessage("Finance approval for your expense '" + expense.getDescription() + "' is complete. Waiting for admin approval.");
 				notificationRepository.save(notif);
 				System.out.println("Notification created for user: " + expenseUser.getEmail());
+				// Send email to the user
+				emailService.sendExpenseStatusEmail(
+					expenseUser.getEmail(),
+					"Expense Approved by Finance",
+					"Finance approval for your expense '" + expense.getDescription() + "' is complete. Waiting for admin approval."
+				);
+				System.out.println("Email sent to user: " + expenseUser.getEmail());
 			} else {
-				System.out.println("WARNING: Expense user is null, cannot create notification!");
+				System.out.println("WARNING: Expense user is null, cannot create notification or send email!");
 			}
 			return true;
 		} else if (expense.getApprovalLevel() == ApprovalLevel.ADMIN) {
@@ -110,8 +117,15 @@ public class ExpenseService {
 				notif.setMessage("Your expense '" + expense.getDescription() + "' is fully approved!");
 				notificationRepository.save(notif);
 				System.out.println("Notification created for user: " + expenseUser.getEmail());
+				// Send email to the user
+				emailService.sendExpenseStatusEmail(
+					expenseUser.getEmail(),
+					"Expense Fully Approved",
+					"Your expense '" + expense.getDescription() + "' is fully approved!"
+				);
+				System.out.println("Email sent to user: " + expenseUser.getEmail());
 			} else {
-				System.out.println("WARNING: Expense user is null, cannot create notification!");
+				System.out.println("WARNING: Expense user is null, cannot create notification or send email!");
 			}
 			return true;
 		}
