@@ -194,4 +194,11 @@ public class ExpenseService {
 	public List<Expense> getAllByUser(com.expense.management.model.User user) {
 		return expenseRepository.findByUser(user);
 	}
+
+	/**
+	 * Get all rejected expenses
+	 */
+	public List<Expense> getRejectedExpenses() {
+		return expenseRepository.findByApprovalStatus(com.expense.management.model.ExpenseStatus.REJECTED);
+	}
 }

@@ -190,12 +190,13 @@ public class UserController {
 
             // Log the role change
             auditService.logEvent(
-                SecurityContextHolder.getContext().getAuthentication().getName(),
+                user.getEmail(),
                 "UPDATE_USER_ROLE",
-                String.format("Changed role of user %s from %s to %s", 
+                String.format("Changed role of user %s from %s to %s by %s", 
                     user.getEmail(), 
                     user.getRole().getName(), 
-                    newRole.getName()),
+                    newRole.getName(),
+                    SecurityContextHolder.getContext().getAuthentication().getName()),
                 "SUCCESS"
             );
 

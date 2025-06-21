@@ -222,39 +222,33 @@ const Dashboard = () => {
     return (
     <div className="space-y-6">
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.totalExpenses)}</p>
-            </div>
-            <Receipt className="h-8 w-8 text-blue-500" />
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Approved Tile */}
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.approvedExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(expenses.filter(e => e.approvalStatus === 'APPROVED').length)}</p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
         </div>
+        {/* Pending Tile */}
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.pendingExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(expenses.filter(e => e.approvalStatus === 'PENDING').length)}</p>
             </div>
             <Clock className="h-8 w-8 text-yellow-500" />
           </div>
         </div>
+        {/* Rejected Tile */}
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Rejected</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboard.rejectedExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(expenses.filter(e => e.approvalStatus === 'REJECTED').length)}</p>
             </div>
             <XCircle className="h-8 w-8 text-red-500" />
           </div>

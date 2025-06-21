@@ -16,7 +16,8 @@ import {
   BarChart3,
   Clock,
   Check,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import axios from 'axios';
@@ -184,6 +185,8 @@ const FinanceDashboard = () => {
       }
     };
     fetchData();
+    // Expose fetchData for manual refresh
+    FinanceDashboard.fetchData = fetchData;
   }, []);
 
   // Show loading or error
@@ -230,12 +233,10 @@ const FinanceDashboard = () => {
         }
       });
 
-      // Update the expenses list
-      setExpenses(expenses.map(e => 
-        e.id === expense.id 
-          ? { ...e, approvalStatus: action === 'approve' ? 'APPROVED' : 'REJECTED' }
-          : e
-      ));
+      // Refresh dashboard and expenses after action
+      if (typeof FinanceDashboard.fetchData === 'function') {
+        await FinanceDashboard.fetchData();
+      }
 
       console.log(`Expense ${action} successfully:`, response.data);
     } catch (error) {
@@ -302,19 +303,15 @@ const FinanceDashboard = () => {
       .filter(entry => entry.year === overviewYear)
       .sort((a, b) => a.month - b.month);
 
+    // Calculate correct tile values
+    const totalProcessed = processedByFinanceExpenses.reduce((sum, e) => sum + (typeof e.amount === 'number' ? e.amount : 0), 0);
+    const pendingCount = expenses.filter(e => e.approvalStatus === 'PENDING').length;
+    const rejectedCount = processedByFinanceExpenses.filter(e => e.approvalStatus === 'REJECTED').length;
+
     return (
     <div className="space-y-6">
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.totalExpenses)}</p>
-            </div>
-            <Receipt className="h-8 w-8 text-blue-500" />
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
@@ -328,16 +325,16 @@ const FinanceDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Pending Approval</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.pendingExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
             </div>
             <Clock className="h-8 w-8 text-yellow-500" />
           </div>
         </div>
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
           <div className="flex items-center justify-between">
             <div>
                 <p className="text-sm font-medium text-gray-600">Rejected Expenses</p>
-                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.rejectedExpenses)}</p>
+                <p className="text-2xl font-bold text-gray-900">{rejectedCount}</p>
             </div>
               <XCircle className="h-8 w-8 text-red-500" />
           </div>
@@ -467,7 +464,19 @@ const FinanceDashboard = () => {
   );
   };
 
-  const renderExpenseManagement = () => (
+  const renderExpenseManagement = () => {
+    // Calculate correct tile values for expense management tab
+    const pendingCount = expenses.filter(e => e.approvalStatus === 'PENDING').length;
+    const now = new Date();
+    const PENDING_DAYS_THRESHOLD = 7;
+    const pendingLong = expenses.filter(e => {
+      if (!e.createdAt || e.approvalStatus !== 'PENDING') return false;
+      const submitted = new Date(e.createdAt);
+      const diffDays = Math.floor((now - submitted) / (1000 * 60 * 60 * 24));
+      return diffDays > PENDING_DAYS_THRESHOLD;
+    });
+
+    return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-xl font-semibold">Expense Management & Approval</h2>
@@ -494,16 +503,7 @@ const FinanceDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
-              <p className="text-2xl font-bold text-yellow-600">{safeToLocaleString(dashboardData.pendingExpenses)}</p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Approved This Month</p>
+              <p className="text-sm font-medium text-gray-600">Approved Expenses</p>
               <p className="text-2xl font-bold text-green-600">{safeToLocaleString(dashboardData.approvedExpenses)}</p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
@@ -512,10 +512,37 @@ const FinanceDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Rejected This Month</p>
-              <p className="text-2xl font-bold text-red-600">{safeToLocaleString(dashboardData.rejectedExpenses)}</p>
+              <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
+              <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
             </div>
-            <XCircle className="h-8 w-8 text-red-500" />
+            <Clock className="h-8 w-8 text-yellow-500" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pending {'>'} {PENDING_DAYS_THRESHOLD} Days</p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold text-red-600 cursor-pointer">
+                  {pendingLong.length}
+                </p>
+                <AlertCircle className="h-8 w-8 text-red-500" />
+              </div>
+              {/* Show up to 3 user names/emails, then '+X more' if needed */}
+              {pendingLong.length > 0 && (
+                <div className="mt-2 text-xs text-gray-700">
+                  {pendingLong.slice(0, 3).map((e, idx) => (
+                    <span key={e.id || idx} className="block truncate">
+                      {e.user?.fullName || e.user?.email || 'Unknown User'}
+                    </span>
+                  ))}
+                  {pendingLong.length > 3 && (
+                    <span className="block text-gray-500">+{pendingLong.length - 3} more</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <AlertCircle className="h-8 w-8 text-red-500" />
           </div>
         </div>
       </div>
@@ -676,6 +703,7 @@ const FinanceDashboard = () => {
       </div>
     </div>
   );
+  };
 
   const renderAnalytics = () => {
     // Transform and sort monthlyExpenses for Recharts, filtered by selected year

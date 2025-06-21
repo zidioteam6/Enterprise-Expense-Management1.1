@@ -43,16 +43,21 @@ public class DashboardService {
         dashboard.setApprovedExpenses(calculateExpensesByStatus(allExpenses, ExpenseStatus.APPROVED));
         dashboard.setRejectedExpenses(calculateExpensesByStatus(allExpenses, ExpenseStatus.REJECTED));
 
-        // Calculate expenses by category
-        dashboard.setExpensesByCategory(calculateExpensesByCategory(allExpenses));
+        // Only use approved expenses for graphs
+        List<Expense> approvedExpenses = allExpenses.stream()
+            .filter(e -> e.getApprovalStatus() == ExpenseStatus.APPROVED)
+            .collect(Collectors.toList());
 
-        // Get recent expenses
+        // Calculate expenses by category (approved only)
+        dashboard.setExpensesByCategory(calculateExpensesByCategory(approvedExpenses));
+
+        // Get recent expenses (all)
         dashboard.setRecentExpenses(getRecentExpenses(allExpenses));
 
-        // Calculate monthly expenses
-        dashboard.setMonthlyExpenses(calculateMonthlyExpenses(allExpenses));
+        // Calculate monthly expenses (approved only)
+        dashboard.setMonthlyExpenses(calculateMonthlyExpenses(approvedExpenses));
 
-        // Calculate status counts
+        // Calculate status counts (all)
         dashboard.setStatusCounts(calculateStatusCounts(allExpenses));
 
         return dashboard;
@@ -71,16 +76,21 @@ public class DashboardService {
         dashboard.setApprovedExpenses(calculateExpensesByStatus(expenses, ExpenseStatus.APPROVED));
         dashboard.setRejectedExpenses(calculateExpensesByStatus(expenses, ExpenseStatus.REJECTED));
 
-        // Calculate expenses by category
-        dashboard.setExpensesByCategory(calculateExpensesByCategory(expenses));
+        // Only use approved expenses for graphs
+        List<Expense> approvedExpenses = expenses.stream()
+            .filter(e -> e.getApprovalStatus() == ExpenseStatus.APPROVED)
+            .collect(Collectors.toList());
 
-        // Get recent expenses
+        // Calculate expenses by category (approved only)
+        dashboard.setExpensesByCategory(calculateExpensesByCategory(approvedExpenses));
+
+        // Get recent expenses (all)
         dashboard.setRecentExpenses(getRecentExpenses(expenses));
 
-        // Calculate monthly expenses
-        dashboard.setMonthlyExpenses(calculateMonthlyExpenses(expenses));
+        // Calculate monthly expenses (approved only)
+        dashboard.setMonthlyExpenses(calculateMonthlyExpenses(approvedExpenses));
 
-        // Calculate status counts
+        // Calculate status counts (all)
         dashboard.setStatusCounts(calculateStatusCounts(expenses));
 
         return dashboard;

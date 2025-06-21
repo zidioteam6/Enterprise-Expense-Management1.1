@@ -103,72 +103,61 @@ const AdminDashboard = () => {
     return diffDays > PENDING_DAYS_THRESHOLD;
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const token = localStorage.getItem('token');
-        const authHeader = { headers: { Authorization: `Bearer ${token}` } };
-        
-        // Dashboard stats
-        const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, authHeader);
-        console.log('Dashboard data:', dashboardRes.data);
-        setDashboardData(dashboardRes.data);
-        
-        // Get expenses pending admin approval only (approved by finance)
-        const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/admin`, authHeader);
-        console.log('Admin pending expenses data:', expensesRes.data);
-        setExpenses(expensesRes.data);
-        
-        // Audit logs
-        const auditRes = await axios.get(`${API_BASE}/api/audit/logs`, authHeader);
-        console.log('Audit logs data:', auditRes.data);
-        setAuditLogs(auditRes.data);
-        
-        // Budget
-        const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, authHeader);
-        console.log('Budget data:', budgetRes.data);
-        setBudget(budgetRes.data.budget);
-        
-        // Users (fetch from backend)
-        const usersRes = await axios.get(`${API_BASE}/api/auth/users`, authHeader);
-        console.log('Users data:', usersRes.data);
-        setUsers(usersRes.data);
-
-        // Fetch processed by admin (fully approved and rejected)
-        const approvedRes = await axios.get(`${API_BASE}/api/expenses/approved`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        let approvedData = approvedRes.data;
-        if (typeof approvedData === 'string') {
-          try { approvedData = JSON.parse(approvedData); } catch { approvedData = []; }
+  // Move fetchData outside useEffect so it can be called elsewhere
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+      // Dashboard stats
+      const dashboardRes = await axios.get(`${API_BASE}/api/dashboard`, authHeader);
+      setDashboardData(dashboardRes.data);
+      // Get expenses pending admin approval only (approved by finance)
+      const expensesRes = await axios.get(`${API_BASE}/api/expenses/pending/admin`, authHeader);
+      setExpenses(expensesRes.data);
+      // Audit logs
+      const auditRes = await axios.get(`${API_BASE}/api/audit/logs`, authHeader);
+      setAuditLogs(auditRes.data);
+      // Budget
+      const budgetRes = await axios.get(`${API_BASE}/api/settings/monthly-budget`, authHeader);
+      setBudget(budgetRes.data.budget);
+      // Users (fetch from backend)
+      const usersRes = await axios.get(`${API_BASE}/api/auth/users`, authHeader);
+      setUsers(usersRes.data);
+      // Fetch processed by admin (fully approved and rejected)
+      const approvedRes = await axios.get(`${API_BASE}/api/expenses/approved`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
         }
-        if (!Array.isArray(approvedData)) approvedData = [];
-        // Optionally, fetch rejected as well if you have a rejected endpoint
-        // const rejectedRes = await axios.get(`${API_BASE}/api/expenses/rejected`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-        // let rejectedData = rejectedRes.data;
-        // if (typeof rejectedData === 'string') { try { rejectedData = JSON.parse(rejectedData); } catch { rejectedData = []; } }
-        // if (!Array.isArray(rejectedData)) rejectedData = [];
-        // const processedData = [...approvedData, ...rejectedData];
-        const processedData = approvedData.map(expense => ({
-          ...expense,
-          user: expense.user ? {
-            id: expense.user.id,
-            email: expense.user.email,
-            fullName: expense.user.fullName
-          } : null
-        }));
-        setProcessedByAdminExpenses(processedData);
-      } catch (err) {
-        console.error('Admin dashboard fetch error:', err);
-        setError(err?.response?.data?.message || err.message || 'Failed to load admin dashboard data.');
-      } finally {
-        setLoading(false);
+      });
+      let approvedData = approvedRes.data;
+      if (typeof approvedData === 'string') {
+        try { approvedData = JSON.parse(approvedData); } catch { approvedData = []; }
       }
-    };
+      if (!Array.isArray(approvedData)) approvedData = [];
+      // Fetch rejected as well
+      const rejectedRes = await axios.get(`${API_BASE}/api/expenses/rejected`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      let rejectedData = rejectedRes.data;
+      if (typeof rejectedData === 'string') { try { rejectedData = JSON.parse(rejectedData); } catch { rejectedData = []; } }
+      if (!Array.isArray(rejectedData)) rejectedData = [];
+      const processedData = [...approvedData, ...rejectedData].map(expense => ({
+        ...expense,
+        user: expense.user ? {
+          id: expense.user.id,
+          email: expense.user.email,
+          fullName: expense.user.fullName
+        } : null
+      }));
+      setProcessedByAdminExpenses(processedData);
+    } catch (err) {
+      setError(err?.response?.data?.message || err.message || 'Failed to load admin dashboard data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -284,12 +273,10 @@ const AdminDashboard = () => {
       }
       // Approve/Reject logic
       await api({ method, url: endpoint });
-      // Refetch the pending admin expenses after action
-      const token = localStorage.getItem('token');
-      const expensesRes = await api.get('/expenses/pending/admin', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-      setExpenses(expensesRes.data);
+      // Refetch all dashboard data after action
+      if (typeof fetchData === 'function') {
+        await fetchData();
+      }
     } catch (error) {
       console.error('Error handling expense action:', error);
       setError(error?.response?.data?.message || 'Failed to perform action');
@@ -354,7 +341,7 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
-              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.statusCounts?.PENDING || 0)}</p>
+              <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(expenses.filter(e => e.approvalStatus?.toUpperCase() === 'PENDING').length)}</p>
             </div>
             <Clock className="h-8 w-8 text-yellow-500" />
           </div>
@@ -363,7 +350,7 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Rejected Expenses</p>
-              <p className="text-2xl font-bold text-gray-900">${safeToLocaleString(dashboardData.rejectedExpenses)}</p>
+              <p className="text-2xl font-bold text-gray-900">{processedByAdminExpenses.filter(e => e.approvalStatus?.toUpperCase() === 'REJECTED').length}</p>
             </div>
             <XCircle className="h-8 w-8 text-red-500" />
           </div>
@@ -451,7 +438,7 @@ const AdminDashboard = () => {
                 expenses.map((expense) => (
                 <tr key={expense.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                      {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                     </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
@@ -673,7 +660,7 @@ const AdminDashboard = () => {
                   expenses.map((expense) => (
                   <tr key={expense.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                        {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                       </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${safeToLocaleString(expense.amount)}</td>
@@ -757,7 +744,7 @@ const AdminDashboard = () => {
                     return (
                       <tr key={expense.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {expense.user ? (expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
+                          {expense.user ? (expense.user.fullName || expense.user.email || `User ${expense.user.id}`) : 'Unknown User'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.category}</td>
                         <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.description}</td>
@@ -1003,19 +990,17 @@ const AdminDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Resource</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {safeArray(auditLogs).map((log, index) => (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.timestamp}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{log.user}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.action}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.resource}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.ip}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.details}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                       log.status === 'SUCCESS' ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'

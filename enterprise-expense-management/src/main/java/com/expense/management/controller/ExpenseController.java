@@ -1183,4 +1183,37 @@ public class ExpenseController {
         }
     }
 
+    @GetMapping("/rejected")
+    public ResponseEntity<?> getRejectedExpenses() {
+        List<Expense> rejectedExpenses = expenseService.getRejectedExpenses();
+        // Create clean expense data without circular references
+        List<Map<String, Object>> cleanExpenses = rejectedExpenses.stream()
+                .map(expense -> {
+                    Map<String, Object> cleanExpense = new HashMap<>();
+                    cleanExpense.put("id", expense.getId());
+                    cleanExpense.put("amount", expense.getAmount());
+                    cleanExpense.put("category", expense.getCategory());
+                    cleanExpense.put("description", expense.getDescription());
+                    cleanExpense.put("date", expense.getDate());
+                    cleanExpense.put("approvalStatus", expense.getApprovalStatus());
+                    cleanExpense.put("approvalLevel", expense.getApprovalLevel());
+                    cleanExpense.put("priority", expense.getPriority());
+                    cleanExpense.put("comments", expense.getComments());
+                    cleanExpense.put("attachmentType", expense.getAttachmentType());
+                    cleanExpense.put("createdAt", expense.getCreatedAt());
+                    // Add user information without circular reference
+                    if (expense.getUser() != null) {
+                        Map<String, Object> userInfo = new HashMap<>();
+                        userInfo.put("id", expense.getUser().getId());
+                        userInfo.put("email", expense.getUser().getEmail());
+                        userInfo.put("fullName", expense.getUser().getFullName());
+                        userInfo.put("role", expense.getUser().getRole() != null ? expense.getUser().getRole().getName() : null);
+                        cleanExpense.put("user", userInfo);
+                    }
+                    return cleanExpense;
+                })
+                .collect(Collectors.toList());
+        return new ResponseEntity<>(cleanExpenses, HttpStatus.OK);
+    }
+
 }
