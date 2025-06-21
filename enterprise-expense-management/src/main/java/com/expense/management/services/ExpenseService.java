@@ -12,12 +12,15 @@ import com.expense.management.repository.ExpenseRepository;
 import com.expense.management.repository.NotificationRepository;
 import com.expense.management.model.Notification;
 import com.expense.management.model.User;
+import com.expense.management.services.EmailService;
 
 @Service
 public class ExpenseService {
 	ExpenseRepository expenseRepository;
 	@Autowired
 	NotificationRepository notificationRepository;
+	@Autowired
+	EmailService emailService;
 
 	ExpenseService(ExpenseRepository expenseRepository) {
 		this.expenseRepository = expenseRepository;
@@ -68,8 +71,15 @@ public class ExpenseService {
 				notif.setMessage("Manager approval for your expense '" + expense.getDescription() + "' is complete. Waiting for finance approval.");
 				notificationRepository.save(notif);
 				System.out.println("Notification created for user: " + expenseUser.getEmail());
+				// Send email to the user
+				emailService.sendExpenseStatusEmail(
+					expenseUser.getEmail(),
+					"Expense Approved by Manager",
+					"Manager approval for your expense '" + expense.getDescription() + "' is complete. Waiting for finance approval."
+				);
+				System.out.println("Email sent to user: " + expenseUser.getEmail());
 			} else {
-				System.out.println("WARNING: Expense user is null, cannot create notification!");
+				System.out.println("WARNING: Expense user is null, cannot create notification or send email!");
 			}
 			return true;
 		} else if (expense.getApprovalLevel() == ApprovalLevel.FINANCE) {

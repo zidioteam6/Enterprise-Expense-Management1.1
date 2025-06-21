@@ -605,16 +605,11 @@ const AdminDashboard = () => {
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pending {'>'} {PENDING_DAYS_THRESHOLD} Days</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-red-600 cursor-pointer">
-                    {pendingLong.length}
-                  </p>
-                  <AlertCircle className="h-8 w-8 text-red-500" />
-                </div>
+                <p className="text-sm font-medium text-gray-600">Pending {'>'} 7 Days</p>
+                <p className="text-2xl font-bold text-red-600">{pendingLong.length}</p>
                 {pendingLong.length > 0 && (
                   <div className="mt-2 text-xs text-gray-700">
                     {pendingLong.slice(0, 3).map((e, idx) => (
@@ -628,6 +623,7 @@ const AdminDashboard = () => {
                   </div>
                 )}
               </div>
+              <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
           </div>
         </div>

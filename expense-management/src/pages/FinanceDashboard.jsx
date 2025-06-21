@@ -522,13 +522,7 @@ const FinanceDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Pending {'>'} {PENDING_DAYS_THRESHOLD} Days</p>
-              <div className="flex items-center gap-2">
-                <p className="text-2xl font-bold text-red-600 cursor-pointer">
-                  {pendingLong.length}
-                </p>
-                <AlertCircle className="h-8 w-8 text-red-500" />
-              </div>
-              {/* Show up to 3 user names/emails, then '+X more' if needed */}
+              <p className="text-2xl font-bold text-red-600">{pendingLong.length}</p>
               {pendingLong.length > 0 && (
                 <div className="mt-2 text-xs text-gray-700">
                   {pendingLong.slice(0, 3).map((e, idx) => (

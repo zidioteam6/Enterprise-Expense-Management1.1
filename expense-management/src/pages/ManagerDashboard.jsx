@@ -18,7 +18,8 @@ import {
   Check,
   X,
   FileText,
-  PieChart
+  PieChart,
+  AlertCircle
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import axios from 'axios';
@@ -330,16 +331,7 @@ const ManagerDashboard = () => {
     return (
       <div className="space-y-6">
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.totalExpenses)}</p>
-              </div>
-              <Receipt className="h-8 w-8 text-blue-500" />
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
             <div className="flex items-center justify-between">
               <div>
@@ -362,7 +354,7 @@ const ManagerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Rejected Expenses</p>
-                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(dashboardData.rejectedExpenses)}</p>
+                <p className="text-2xl font-bold text-gray-900">{safeToLocaleString(processedByManagerExpenses.filter(e => e.approvalStatus === 'REJECTED').length)}</p>
               </div>
               <XCircle className="h-8 w-8 text-red-500" />
             </div>
@@ -544,7 +536,16 @@ const ManagerDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Approved This Month</p>
-              <p className="text-2xl font-bold text-green-600">{safeToLocaleString(dashboardData.approvedExpenses)}</p>
+              <p className="text-2xl font-bold text-green-600">{
+                safeToLocaleString(
+                  processedByManagerExpenses.filter(e => {
+                    if (e.approvalStatus !== 'APPROVED' || !e.date) return false;
+                    const d = new Date(e.date);
+                    const now = new Date();
+                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                  }).length
+                )
+              }</p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
@@ -552,10 +553,15 @@ const ManagerDashboard = () => {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Rejected This Month</p>
-              <p className="text-2xl font-bold text-red-600">{safeToLocaleString(dashboardData.rejectedExpenses)}</p>
+              <p className="text-sm font-medium text-gray-600">Pending {'>'} 7 Days</p>
+              <p className="text-2xl font-bold text-red-600">{expenses.filter(e => {
+                if (!e.createdAt || e.approvalStatus !== 'PENDING') return false;
+                const submitted = new Date(e.createdAt);
+                const diffDays = Math.floor((Date.now() - submitted) / (1000 * 60 * 60 * 24));
+                return diffDays > 7;
+              }).length}</p>
             </div>
-            <XCircle className="h-8 w-8 text-red-500" />
+            <AlertCircle className="h-8 w-8 text-red-500" />
           </div>
         </div>
       </div>

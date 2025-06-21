@@ -312,12 +312,22 @@ const Dashboard = () => {
           <ul className="divide-y divide-gray-200">
             {(dashboard.recentExpenses && dashboard.recentExpenses.length > 0
               ? dashboard.recentExpenses.slice(0, 7)
-              : (Array.isArray(expenses) ? expenses.slice(0, 7) : [])
+              : (Array.isArray(expenses) ? expenses.slice().sort((a, b) => {
+                  if (a.createdAt && b.createdAt) {
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                  } else if (a.createdAt) {
+                    return -1;
+                  } else if (b.createdAt) {
+                    return 1;
+                  } else {
+                    return new Date(b.date) - new Date(a.date);
+                  }
+                }).slice(0, 7) : [])
             ).map((expense) => (
               <li key={expense.id} className="py-3 flex items-center justify-between">
                 <div>
                   <div className="font-medium text-gray-900">{expense.description}</div>
-                  <div className="text-sm text-gray-500">{getCategoryDisplay(expense.category)} &middot; {new Date(expense.date).toLocaleDateString()}</div>
+                  <div className="text-sm text-gray-500">{getCategoryDisplay(expense.category)} &middot; {expense.createdAt ? new Date(expense.createdAt).toLocaleString() : (expense.date ? new Date(expense.date).toLocaleDateString() : '-')}</div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-semibold text-gray-700">${safeToLocaleString(expense.amount)}</span>
@@ -377,7 +387,17 @@ const Dashboard = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {(Array.isArray(expenses) ?
-                expenses.slice().sort((a, b) => new Date(b.date) - new Date(a.date)) : [])
+                expenses.slice().sort((a, b) => {
+                  if (a.createdAt && b.createdAt) {
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                  } else if (a.createdAt) {
+                    return -1;
+                  } else if (b.createdAt) {
+                    return 1;
+                  } else {
+                    return new Date(b.date) - new Date(a.date);
+                  }
+                }) : [])
                 .filter(expense => 
                   expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                   expense.category.toLowerCase().includes(searchTerm.toLowerCase())
