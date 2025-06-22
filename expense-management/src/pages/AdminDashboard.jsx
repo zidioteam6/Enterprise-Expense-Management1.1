@@ -32,6 +32,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
+import { useNotification } from '../context/NotificationContext';
 
 const API_BASE = 'http://localhost:8080';
 
@@ -51,6 +52,12 @@ const AdminDashboard = () => {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseModalMode, setExpenseModalMode] = useState('view'); // 'view', 'edit', 'delete'
 
+  // Filter state variables
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+
   // Backend data states
   const [dashboardData, setDashboardData] = useState(null);
   const [expenses, setExpenses] = useState([]);
@@ -66,6 +73,7 @@ const AdminDashboard = () => {
 
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   // Helper to parse year and month from key
   const parseYearMonth = (key) => {
@@ -230,10 +238,115 @@ const AdminDashboard = () => {
     }
   };
 
-  const exportData = (type) => {
-    // Simulate export functionality
-    alert(`Exporting ${type} data...`);
+  const exportData = async (type) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Fetch all expenses from the backend
+      const response = await axios.get(`${API_BASE}/api/expenses`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const allExpenses = response.data;
+      
+      console.log('Export data sample:', allExpenses[0]); // Debug log
+      
+      if (!Array.isArray(allExpenses) || allExpenses.length === 0) {
+        addNotification('No expenses found to export', 'warning');
+        return;
+      }
+      
+      // Create CSV content
+      const csvHeaders = [
+        'Expense ID',
+        'Employee Name',
+        'Employee Email',
+        'Category',
+        'Description',
+        'Amount (Rs)',
+        'Date',
+        'Created At',
+        'Status',
+        'Approval Level',
+        'Receipt URL'
+      ];
+      
+      const csvRows = allExpenses.map(expense => {
+        // Format expense date properly
+        let dateFormatted = '';
+        if (expense.date) {
+          try {
+            const expenseDate = new Date(expense.date);
+            if (!isNaN(expenseDate.getTime())) {
+              dateFormatted = expenseDate.toLocaleDateString();
+            }
+          } catch (error) {
+            console.warn('Error formatting date for expense:', expense.id, error);
+          }
+        }
+        
+        // Format createdAt date properly
+        let createdAtFormatted = '';
+        if (expense.createdAt) {
+          try {
+            const createdAtDate = new Date(expense.createdAt);
+            if (!isNaN(createdAtDate.getTime())) {
+              createdAtFormatted = createdAtDate.toLocaleString();
+            }
+          } catch (error) {
+            console.warn('Error formatting createdAt for expense:', expense.id, error);
+          }
+        }
+        
+        return [
+          expense.id || '',
+          expense.user?.fullName || 'Unknown User',
+          expense.user?.email || '',
+          expense.category || '',
+          expense.description || '',
+          expense.amount || 0,
+          dateFormatted || 'No Date',
+          createdAtFormatted || 'No Creation Date',
+          expense.approvalStatus || '',
+          expense.approvalLevel || '',
+          expense.receiptUrl || 'No Receipt'
+        ];
+      });
+      
+      // Combine headers and rows
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `all_expenses_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      addNotification(`Successfully exported ${allExpenses.length} expenses to CSV`, 'success');
+      
+    } catch (error) {
+      console.error('Export error:', error);
+      addNotification('Failed to export expenses. Please try again.', 'error');
+    }
   };
+
+  // Filter logic
+  const filteredExpenses = expenses.filter(expense => {
+    const matchesCategory = !filterCategory || expense.category === filterCategory;
+    const matchesStartDate = !filterStartDate || new Date(expense.date) >= new Date(filterStartDate);
+    const matchesEndDate = !filterEndDate || new Date(expense.date) <= new Date(filterEndDate);
+    return matchesCategory && matchesStartDate && matchesEndDate &&
+      (searchTerm === '' ||
+        (expense?.category?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (expense?.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
+  });
 
   const handleExpenseAction = async (action, expense) => {
     try {
@@ -428,14 +541,14 @@ const AdminDashboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {expenses.length === 0 ? (
+              {filteredExpenses.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                     No expenses pending admin approval.
                   </td>
                 </tr>
               ) : (
-                expenses
+                filteredExpenses
                   .slice() // Create a shallow copy to sort
                   .sort((a, b) => {
                     const statusOrder = { PENDING: 1, APPROVED: 2, REJECTED: 3 };
@@ -580,11 +693,7 @@ const AdminDashboard = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-xl font-semibold">Expense Management</h2>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
-          </button>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+          <button onClick={() => setShowFilterModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
             <Filter className="h-4 w-4" />
             Advanced Filters
           </button>
@@ -652,14 +761,14 @@ const AdminDashboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {expenses.length === 0 ? (
+              {filteredExpenses.length === 0 ? (
                 <tr>
                     <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                     No expenses pending admin approval.
                   </td>
                 </tr>
               ) : (
-                  expenses
+                  filteredExpenses
                     .slice() // Create a shallow copy to sort
                     .sort((a, b) => {
                       const statusOrder = { PENDING: 1, APPROVED: 2, REJECTED: 3 };
@@ -1205,6 +1314,36 @@ const AdminDashboard = () => {
               >
                 Save
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg relative">
+            <button onClick={() => setShowFilterModal(false)} className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            <h3 className="text-lg font-semibold mb-4">Advanced Filters</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <input type="text" className="w-full border rounded p-2" value={filterCategory} onChange={e => setFilterCategory(e.target.value)} placeholder="e.g. TRAVEL" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <input type="date" className="w-full border rounded p-2" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <input type="date" className="w-full border rounded p-2" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-4">
+                <button onClick={() => { setFilterCategory(''); setFilterStartDate(''); setFilterEndDate(''); }} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">Clear</button>
+                <button onClick={() => setShowFilterModal(false)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Apply</button>
+              </div>
             </div>
           </div>
         </div>

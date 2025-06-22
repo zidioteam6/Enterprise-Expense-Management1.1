@@ -163,6 +163,8 @@ public class ExpenseController {
                     cleanExpense.put("priority", expense.getPriority());
                     cleanExpense.put("comments", expense.getComments());
                     cleanExpense.put("attachmentType", expense.getAttachmentType());
+                    cleanExpense.put("receiptUrl", expense.getReceiptUrl());
+                    cleanExpense.put("createdAt", expense.getCreatedAt());
 
                     // Add user information without circular reference
                     if (expense.getUser() != null) {

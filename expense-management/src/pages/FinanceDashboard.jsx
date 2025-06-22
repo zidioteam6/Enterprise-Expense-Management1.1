@@ -49,6 +49,12 @@ const FinanceDashboard = () => {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseModalMode, setExpenseModalMode] = useState('view');
 
+  // Filter state variables
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+
   // --- Overview Tab: Year Selector State ---
   const [overviewYear, setOverviewYear] = useState(new Date().getFullYear());
 
@@ -281,6 +287,17 @@ const FinanceDashboard = () => {
     }
   };
 
+  // Filter logic
+  const filteredExpenses = expenses.filter(expense => {
+    const matchesCategory = !filterCategory || expense.category === filterCategory;
+    const matchesStartDate = !filterStartDate || new Date(expense.date) >= new Date(filterStartDate);
+    const matchesEndDate = !filterEndDate || new Date(expense.date) <= new Date(filterEndDate);
+    return matchesCategory && matchesStartDate && matchesEndDate &&
+      (searchTerm === '' ||
+        (expense?.category?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (expense?.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
+  });
+
   const renderOverview = () => {
     // Transform and sort monthlyExpenses object into an array for the chart, filtered by selected year
     const transformedMonthlyExpenses = Object.entries(dashboardData.monthlyExpenses || {})
@@ -491,7 +508,7 @@ const FinanceDashboard = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+          <button onClick={() => setShowFilterModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
             <Filter className="h-4 w-4" />
             Advanced Filters
           </button>
@@ -563,26 +580,21 @@ const FinanceDashboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {expenses.length === 0 ? (
+              {filteredExpenses.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                     No expenses found. Employees need to submit expenses first.
                   </td>
                 </tr>
-              ) : expenses.filter(e => e.approvalStatus === 'PENDING').length === 0 ? (
+              ) : filteredExpenses.filter(e => e.approvalStatus === 'PENDING').length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                     No pending expenses to approve. All expenses have been processed.
                   </td>
                 </tr>
               ) : (
-                expenses
+                filteredExpenses
                   .filter(expense => expense.approvalStatus === 'PENDING')
-                  .filter(expense => 
-                    searchTerm === '' || 
-                    (expense?.category?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                    (expense?.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-                  )
                   .map((expense) => (
                     <tr key={expense.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -994,6 +1006,36 @@ const FinanceDashboard = () => {
           {activeTab === 'settings' && renderSettings()}
         </div>
       </div>
+
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg relative">
+            <button onClick={() => setShowFilterModal(false)} className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            <h3 className="text-lg font-semibold mb-4">Advanced Filters</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <input type="text" className="w-full border rounded p-2" value={filterCategory} onChange={e => setFilterCategory(e.target.value)} placeholder="e.g. TRAVEL" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <input type="date" className="w-full border rounded p-2" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <input type="date" className="w-full border rounded p-2" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-4">
+                <button onClick={() => { setFilterCategory(''); setFilterStartDate(''); setFilterEndDate(''); }} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">Clear</button>
+                <button onClick={() => setShowFilterModal(false)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expense Modal */}
       {showExpenseModal && selectedExpense && expenseModalMode === 'view' && (

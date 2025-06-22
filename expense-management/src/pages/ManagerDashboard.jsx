@@ -54,7 +54,6 @@ const ManagerDashboard = () => {
 
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
 
@@ -221,44 +220,12 @@ const ManagerDashboard = () => {
     }
   };
 
-  // Export Report as PDF
-  const handleExportReport = () => {
-    const exportExpenses = filteredExpenses.filter(expense => ['PENDING', 'APPROVED', 'REJECTED'].includes(expense.approvalStatus));
-    const totalAmount = exportExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-    const doc = new jsPDF();
-    const today = new Date();
-    const formattedDate = today.toISOString().slice(0, 10);
-    doc.setFontSize(18);
-    doc.text('Expense Report', 14, 18);
-    doc.setFontSize(12);
-    doc.text(`Generated on: ${formattedDate}`, 14, 28);
-    doc.text(`Total Amount: Rs${totalAmount.toLocaleString()}`, 14, 36);
-    const tableColumn = ['Date', 'Category', 'Description', 'Amount', 'Status'];
-    const tableRows = exportExpenses.map(expense => [
-      expense.date,
-      expense.category,
-      expense.description,
-      `Rs${Number(expense.amount).toLocaleString()}`,
-      expense.approvalStatus
-    ]);
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 44,
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [59, 130, 246] },
-    });
-    doc.save('manager_expenses_report.pdf');
-    addNotification('Report exported as PDF!', 'success');
-  };
-
   // Filter logic
   const filteredExpenses = expenses.filter(expense => {
     const matchesCategory = !filterCategory || expense.category === filterCategory;
-    const matchesStatus = !filterStatus || expense.approvalStatus === filterStatus;
     const matchesStartDate = !filterStartDate || new Date(expense.date) >= new Date(filterStartDate);
     const matchesEndDate = !filterEndDate || new Date(expense.date) <= new Date(filterEndDate);
-    return matchesCategory && matchesStatus && matchesStartDate && matchesEndDate &&
+    return matchesCategory && matchesStartDate && matchesEndDate &&
       (searchTerm === '' ||
         (expense?.category?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (expense?.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
@@ -510,10 +477,6 @@ const ManagerDashboard = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button onClick={handleExportReport} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
-          </button>
           <button onClick={() => setShowFilterModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
             <Filter className="h-4 w-4" />
             Advanced Filters
@@ -1026,15 +989,6 @@ const ManagerDashboard = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                 <input type="text" className="w-full border rounded p-2" value={filterCategory} onChange={e => setFilterCategory(e.target.value)} placeholder="e.g. TRAVEL" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select className="w-full border rounded p-2" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                  <option value="">All</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="REJECTED">Rejected</option>
-                </select>
-              </div>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
@@ -1046,7 +1000,7 @@ const ManagerDashboard = () => {
                 </div>
               </div>
               <div className="flex gap-2 justify-end mt-4">
-                <button onClick={() => { setFilterCategory(''); setFilterStatus(''); setFilterStartDate(''); setFilterEndDate(''); }} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">Clear</button>
+                <button onClick={() => { setFilterCategory(''); setFilterStartDate(''); setFilterEndDate(''); }} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">Clear</button>
                 <button onClick={() => setShowFilterModal(false)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Apply</button>
               </div>
             </div>
