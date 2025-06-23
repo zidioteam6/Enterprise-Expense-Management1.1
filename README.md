@@ -51,7 +51,7 @@ The Enterprise Expense Management System is a robust, full-stack web application
 
 #### Backend (Spring Boot)
 ```bash
-git clone https://github.com/your-org/enterprise-expense-management.git
+https://github.com/zidioteam6/Enterprise-Expense-Management1.1.git
 cd enterprise-expense-management
 mvn clean install
 mvn spring-boot:run
@@ -68,7 +68,7 @@ npm start
 Flyway is used for database versioning. Migrations run automatically on app start. A default admin user is created during the initial migration.
 
 ## 🔑 Default Admin Credentials
-> ⚠️ Please change the default credentials immediately after first login!
+> ⚠️ Delete the admin user after assigning another user as admin!
 - **Username:** admin123@gmail.com
 - **Password:** 123456
 
@@ -151,5 +151,5 @@ We welcome contributions! To contribute:
 - Open a Pull Request
 
 ## 📬 Contact / Support
-- **Maintainer:** ZIDIO Development
+- **Maintainer:** github.com/zayed31, github.com/rehmanJavadeveloper, github.com/Nitesh-g710
 - **Location:** Bengaluru, Karnataka
