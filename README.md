@@ -77,33 +77,44 @@ Flyway is used for database versioning. Migrations run automatically on app star
 ### Database Configuration
 Edit `src/main/resources/application.properties`:
 
+```properties
 spring.datasource.url=your database url
 spring.datasource.username=your database username
 spring.datasource.password=your database password
+```
 
 ### ✉️ Mail (SMTP) Configuration
+
+```properties
 spring.mail.host=MAIL_HOST
 spring.mail.port=587
 spring.mail.username=MAIL_USERNAME
 spring.mail.password=MAIL_PASSWORD
 spring.mail.properties.mail.smtp.auth=true
 spring.mail.properties.mail.smtp.starttls.enable=true
-
+```
 
 ### ☁️ Cloudinary Configuration
+
+```properties
 cloudinary.cloud_name=CLOUDINARY_CLOUD_NAME
 cloudinary.api_key=CLOUDINARY_API_KEY
 cloudinary.api_secret=CLOUDINARY_API_SECRET
+```
 
 ### 🔐 JWT & OAuth2 Configuration
+
+```properties
 app.jwt.secret=JWT_SECRET
 app.jwt.expiration=JWT_EXPIRATION_MS
 spring.security.oauth2.client.registration.google.client-id=GOOGLE_CLIENT_ID
 spring.security.oauth2.client.registration.google.client-secret=GOOGLE_CLIENT_SECRET
 spring.security.oauth2.client.registration.github.client-id=GITHUB_CLIENT_ID
 spring.security.oauth2.client.registration.github.client-secret=GITHUB_CLIENT_SECRET
+```
+```
 
-
+---
 ## 👥 Usage
 - Access each dashboard based on your assigned role.
 - Admin users can promote others to Manager, Finance, or Admin via the Admin Dashboard.
