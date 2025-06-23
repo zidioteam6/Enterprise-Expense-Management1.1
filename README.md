@@ -67,10 +67,6 @@ npm start
 #### Database Migration
 Flyway is used for database versioning. Migrations run automatically on app start. A default admin user is created during the initial migration.
 
-## 🔑 Default Admin Credentials
-> ⚠️ Delete the admin user after assigning another user as admin!
-- **Username:** admin123@gmail.com
-- **Password:** 123456
 
 ### 🗄️ Database Setup and Configuration
 
@@ -122,8 +118,14 @@ spring.security.oauth2.client.registration.github.client-id=GITHUB_CLIENT_ID
 spring.security.oauth2.client.registration.github.client-secret=GITHUB_CLIENT_SECRET
 ```
 ```
-
 ---
+
+## 🔑 Default Admin Credentials
+> ⚠️ Delete the admin user after assigning another user as admin!
+- **Username:** admin123@gmail.com
+- **Password:** 123456
+
+
 ## 👥 Usage
 - Access each dashboard based on your assigned role.
 - Admin users can promote others to Manager, Finance, or Admin via the Admin Dashboard.
