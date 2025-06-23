@@ -72,16 +72,25 @@ Flyway is used for database versioning. Migrations run automatically on app star
 - **Username:** admin123@gmail.com
 - **Password:** 123456
 
-## ⚙️ Configuration
+### 🗄️ Database Setup and Configuration
 
-### Database Configuration
+#### 1. Create MySQL Database
+Before running the backend, create your database manually in MySQL:
+
+```sql
+CREATE DATABASE expense_management;
+```
+> Make sure your MySQL server is running and accessible.
+
+#### 2. Configure Database Connection
 Edit `src/main/resources/application.properties`:
 
 ```properties
-spring.datasource.url=your database url
-spring.datasource.username=your database username
-spring.datasource.password=your database password
+spring.datasource.url=jdbc:mysql://localhost:3306/expense_management
+spring.datasource.username=YOUR_DB_USERNAME
+spring.datasource.password=YOUR_DB_PASSWORD
 ```
+> ⚠️ Replace YOUR_DB_USERNAME and YOUR_DB_PASSWORD with your actual MySQL credentials.
 
 ### ✉️ Mail (SMTP) Configuration
 
